@@ -1,65 +1,109 @@
-import Image from "next/image";
+// src/app/page.tsx
+import Link from "next/link";
 
-export default function Home() {
+/**
+ * Public landing page (no auth required).
+ * Keep it simple + clean, match the blue/white brand.
+ */
+export default function HomePage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between bg-white px-16 py-32 sm:items-start dark:bg-black">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl leading-10 font-semibold tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <main className="min-h-screen bg-[#F6FAFF]">
+      {/* Top bar */}
+      <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5">
+        <div className="flex items-center gap-2">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#2B78FF] text-white">
+            {/* Simple icon placeholder */}
+            <span className="text-lg font-bold">AJ</span>
+          </div>
+          <div className="leading-tight">
+            <div className="text-sm font-semibold text-neutral-900">AJ Library Booking</div>
+            <div className="text-xs text-neutral-600">UWI • Study rooms</div>
+          </div>
+        </div>
+
+        <nav className="flex items-center gap-2">
+          <Link
+            href="/login"
+            className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-50"
+          >
+            Login
+          </Link>
+          <Link
+            href="/signup"
+            className="rounded-lg bg-[#2B78FF] px-4 py-2 text-sm font-medium text-white hover:bg-[#2467D9]"
+          >
+            Sign up
+          </Link>
+        </nav>
+      </header>
+
+      {/* Hero */}
+      <section className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-6 pb-16 pt-6 md:grid-cols-2 md:items-center">
+        <div>
+          <h1 className="text-4xl font-semibold tracking-tight text-neutral-900 md:text-5xl">
+            Book a study room at Alma Jordan Library
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+
+          <p className="mt-4 text-base leading-relaxed text-neutral-700">
+            Find a room by capacity and amenities, see real-time availability, and reserve up to{" "}
+            <span className="font-medium">2 bookings per day</span> (or whatever the library sets).
           </p>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/signup"
+              className="rounded-lg bg-[#2B78FF] px-5 py-3 text-sm font-semibold text-white hover:bg-[#2467D9]"
+            >
+              Get started
+            </Link>
+            <Link
+              href="/rooms"
+              className="rounded-lg border border-neutral-200 bg-white px-5 py-3 text-sm font-semibold text-neutral-900 hover:bg-neutral-50"
+            >
+              Browse rooms
+            </Link>
+          </div>
+
+          {/* Trust / rules row */}
+          <div className="mt-8 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-neutral-200 bg-white p-4">
+              <div className="text-sm font-semibold text-neutral-900">Real-time</div>
+              <div className="mt-1 text-xs text-neutral-600">
+                Live availability with overlap prevention.
+              </div>
+            </div>
+            <div className="rounded-xl border border-neutral-200 bg-white p-4">
+              <div className="text-sm font-semibold text-neutral-900">Fair use</div>
+              <div className="mt-1 text-xs text-neutral-600">
+                Daily limits + no-show rules (configurable).
+              </div>
+            </div>
+            <div className="rounded-xl border border-neutral-200 bg-white p-4">
+              <div className="text-sm font-semibold text-neutral-900">Mobile-ready</div>
+              <div className="mt-1 text-xs text-neutral-600">
+                Works cleanly on phones and laptops.
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="bg-foreground text-background flex h-12 w-full items-center justify-center gap-2 rounded-full px-5 transition-colors hover:bg-[#383838] md:w-[158px] dark:hover:bg-[#ccc]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] md:w-[158px] dark:border-white/[.145] dark:hover:bg-[#1a1a1a]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Right visual card stack */}
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-neutral-200 bg-white">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-6 py-6 text-xs text-neutral-600 sm:flex-row sm:items-center sm:justify-between">
+          <div>© {new Date().getFullYear()} AJ Library Booking • UWI</div>
+          <div className="flex gap-4">
+            <Link className="hover:underline" href="/login">
+              Login
+            </Link>
+            <Link className="hover:underline" href="/signup">
+              Sign up
+            </Link>
+          </div>
         </div>
-      </main>
-    </div>
+      </footer>
+    </main>
   );
 }
