@@ -83,6 +83,7 @@ export default async function RoomsPage(props: {
     | null
     | {
         roomId: number;
+        roomName: string;
         date: string;
         slots: { start: string; end: string; isBooked: boolean }[];
         slotMinutes: number;
@@ -123,6 +124,7 @@ export default async function RoomsPage(props: {
 
         bookingDTO = {
           roomId: bookRoomId,
+          roomName: room.name,
           date: selectedDate,
           slots,
           slotMinutes: settings.slot_minutes,
@@ -134,38 +136,47 @@ export default async function RoomsPage(props: {
   }
 
 return (
+  <div className="space-y-8">
     <div>
-      <h1 className="text-2xl font-semibold">Browse Rooms</h1>
-      <p className="mt-1 text-sm text-gray-600">
-        Filter rooms and click <b>Book</b> to reserve time.
-      </p>
+      {/* 1. Header: Increased size and switched to black/bold */}
+      <h1 className="text-3xl font-bold text-black tracking-tight">
+        Browse Rooms
+      </h1>
       
-      <RoomsDatePicker maxDaysAhead={settingsForPicker.max_booking_window_days} />
-
-
-      {/* Filters (client component) */}
-      <RoomFilters />
-
-      {/* Booking modal auto-opens when bookRoomId exists */}
-      {bookingDTO ? <SlotPickerModalAutoOpen dto={bookingDTO} /> : null}
-
-
-      {/* Rooms grid */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {rooms.map((r) => (
-          <RoomCard
-            key={String(r.id)}
-            room={r as any}
-            preserve={{
-              building: building?.trim() || undefined,
-              amenity: amenity?.trim() || undefined,
-              minCapacityRaw: minCapacityRaw,
-              date: selectedDate,
-            }}
-          />
-        ))}
+      {/* 2. Instructions: Darkened to text-gray-800 for legibility */}
+      <p className="mt-2 text-sm font-medium text-gray-800">
+        Filter rooms and click <b className="text-black">Book Room</b> to reserve time.
+      </p>
+    </div>
+    
+    {/* 3. Booking Date Section: Added a border and darkened labels */}
+    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="mt-3 text-xs font-medium text-gray-500">
+        <RoomsDatePicker maxDaysAhead={settingsForPicker.max_booking_window_days} />
       </div>
-      </div>
+    </div>
 
-  );
+    {/* Filters Component */}
+    <RoomFilters />
+
+    {/* Booking modal auto-opens when bookRoomId exists */}
+    {bookingDTO ? <SlotPickerModalAutoOpen dto={bookingDTO} /> : null}
+
+    {/* Rooms grid */}
+    <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {rooms.map((r) => (
+        <RoomCard
+          key={String(r.id)}
+          room={r as any}
+          preserve={{
+            building: building?.trim() || undefined,
+            amenity: amenity?.trim() || undefined,
+            minCapacityRaw: minCapacityRaw,
+            date: selectedDate,
+          }}
+        />
+      ))}
+    </div>
+  </div>
+);
 }

@@ -33,82 +33,43 @@ export default function SlotPicker({
 }: {
   roomId: number;
   slots: Slot[];
-  slotMinutes: number; // ✅ from settings.slot_minutes
-  maxConsecutive: number; // ✅ from settings.max_consecutive_hours
-  maxDurationHours: number; // ✅ from settings.max_booking_duration_hours (UI hint)
-  onBooked?: () => void; // ✅ optional callback used by modal
+  slotMinutes: number;
+  maxConsecutive: number;
+  maxDurationHours: number;
+  onBooked?: () => void;
 }) {
-    const router = useRouter();
+  const router = useRouter();
 
-  /**
-   * Sort slots by time once (important for consecutive-range logic).
-   */
   const sortedSlots = useMemo(() => {
     return [...slots].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
   }, [slots]);
 
-  /**
-   * Range selection:
-   * - first click chooses a start slot
-   * - second click chooses an end slot (must be consecutive, within limits)
-   */
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
-
-  // Purpose field (server stores it; your API already validates rules)
   const [purpose, setPurpose] = useState("");
 
-  // UX state
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  /**
-   * Hydration safety:
-   * Server-rendered times can mismatch client timezone formatting.
-   * We render "—" until mounted, then format times locally.
-   */
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  /**
-   * Map slot.start -> slot, so we can quickly verify consecutive ranges.
-   * Includes booked slots too (so we can reject ranges that cross booked gaps).
-   */
   const slotByStart = useMemo(() => {
     const m = new Map<string, Slot>();
     for (const s of sortedSlots) m.set(s.start, s);
     return m;
   }, [sortedSlots]);
 
-  /**
-   * Settings-derived limits used by the UI.
-   * - max selectable slots is limited by BOTH:
-   *   1) maxConsecutive (settings.max_consecutive_hours)
-   *   2) maxDurationHours (settings.max_booking_duration_hours)
-   *
-   * Why both?
-   * - maxConsecutive prevents long back-to-back bookings.
-   * - maxDurationHours caps a single booking request length.
-   * Server enforces everything anyway; this is just a matching UI guard.
-   */
   const maxSlotsByDuration = Math.floor((maxDurationHours * 60) / slotMinutes);
   const maxSelectableSlots = Math.max(1, Math.min(maxConsecutive, maxSlotsByDuration));
 
-  /**
-   * Build the selected range as a list of slots (inclusive endpoints).
-   * Must be:
-   * - 1..maxSelectableSlots slots
-   * - all available
-   * - strictly consecutive by slotMinutes
-   */
   const selectedSlots = useMemo(() => {
     if (!rangeStart) return [];
 
     const start = rangeStart;
     const end = rangeEnd ?? rangeStart;
 
-    // Ensure chronological order (support selecting end before start)
     const startISO = Date.parse(start) <= Date.parse(end) ? start : end;
     const endISO = Date.parse(start) <= Date.parse(end) ? end : start;
 
@@ -118,10 +79,8 @@ export default function SlotPicker({
 
     const slice = sortedSlots.slice(startIdx, endIdx + 1);
 
-    // Must be within configured max selection length
     if (slice.length < 1 || slice.length > maxSelectableSlots) return [];
 
-    // Must be available + consecutive
     for (let i = 0; i < slice.length; i++) {
       if (slice[i].isBooked) return [];
       if (i > 0) {
@@ -133,10 +92,6 @@ export default function SlotPicker({
     return slice;
   }, [rangeStart, rangeEnd, sortedSlots, slotMinutes, maxSelectableSlots]);
 
-  /**
-   * Convert selectedSlots to booking start/end for the API.
-   * End time should be the end of the last slot.
-   */
   const bookingRange = useMemo(() => {
     if (selectedSlots.length === 0) return null;
     const first = selectedSlots[0];
@@ -144,13 +99,6 @@ export default function SlotPicker({
     return { start: first.start, end: last.end, slots: selectedSlots.length };
   }, [selectedSlots]);
 
-  /**
-   * During selection: determine whether a candidate slot can be chosen
-   * as the range end such that the range:
-   * - stays <= maxSelectableSlots
-   * - stays consecutive in slotMinutes steps
-   * - does not include booked gaps
-   */
   function canSelectAsEnd(candidateStart: string) {
     if (!rangeStart) return true;
 
@@ -160,16 +108,13 @@ export default function SlotPicker({
     const from = Math.min(a, b);
     const to = Math.max(a, b);
 
-    // Generate the slot starts that would be included in the range.
     const neededStarts: string[] = [];
     for (let t = from; t <= to; t += slotMinutes * 60 * 1000) {
       neededStarts.push(new Date(t).toISOString());
     }
 
-    // Range too long
     if (neededStarts.length > maxSelectableSlots) return false;
 
-    // Every start must exist and be available
     for (const sISO of neededStarts) {
       const s = slotByStart.get(sISO);
       if (!s) return false;
@@ -186,34 +131,27 @@ export default function SlotPicker({
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    // First click chooses start
     if (!rangeStart) {
       setRangeStart(s.start);
       setRangeEnd(null);
       return;
     }
 
-    // Clicking start again resets
     if (isSameISO(rangeStart, s.start)) {
       setRangeStart(null);
       setRangeEnd(null);
       return;
     }
 
-    // Second click chooses end if valid
     if (!canSelectAsEnd(s.start)) {
-      setErrorMsg(
-        `Select up to ${maxSelectableSlots} consecutive slot(s) with no gaps.`,
-      );
+      setErrorMsg(`Select up to ${maxSelectableSlots} consecutive slot(s) with no gaps.`);
       return;
     }
 
     setRangeEnd(s.start);
   }
 
-  // Confirm only when bookingRange exists + purpose is minimally valid
-  const canConfirm =
-    Boolean(bookingRange) && purpose.trim().length >= 3 && !submitting;
+  const canConfirm = Boolean(bookingRange) && purpose.trim().length >= 3 && !submitting;
 
   async function confirmBooking() {
     if (!bookingRange) return;
@@ -244,19 +182,14 @@ export default function SlotPicker({
 
       setSuccessMsg("Booking confirmed.");
       setSubmitting(false);
-      // If we're inside a modal, let the parent close it + clean up URL.
       onBooked?.();
 
-      // Refresh server data so the chosen slots become unavailable immediately
       try {
         const qs = typeof window !== "undefined" ? window.location.search : "";
         router.replace(window.location.pathname + qs);
-      } catch {
-        // ignore
-      }
+      } catch {}
       router.refresh();
 
-      // Reset UI
       setRangeStart(null);
       setRangeEnd(null);
       setPurpose("");
@@ -271,37 +204,35 @@ export default function SlotPicker({
   }
 
   return (
-    <div className="mt-6 rounded border bg-white p-4">
-      <h2 className="text-sm font-semibold">Select a time slot</h2>
-
-      <p className="mt-1 text-xs text-gray-600">
-        Select up to <b>{maxSelectableSlots}</b> consecutive{" "}
+    <div className="mt-4 rounded border bg-white p-4">
+      {/* 1. Header Text - Darker */}
+      <h2 className="text-sm font-bold text-black">Select a time slot</h2>
+      <p className="mt-1 text-xs font-medium text-gray-700">
+        Select up to <b className="text-black">{maxSelectableSlots}</b> consecutive{" "}
         {slotMinutes}-minute slot(s).
       </p>
 
-      {errorMsg ? (
-        <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+      {/* Messages */}
+      {errorMsg && (
+        <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 font-medium">
           {errorMsg}
         </div>
-      ) : null}
-
-      {successMsg ? (
-        <div className="mt-3 rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+      )}
+      {successMsg && (
+        <div className="mt-3 rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 font-medium">
           {successMsg}
         </div>
-      ) : null}
+      )}
 
+      {/* 2. Slot Grid */}
       <div className="mt-4 grid gap-2 md:grid-cols-3">
         {sortedSlots.map((s) => {
           const disabled = s.isBooked || submitting;
-
           const inRange = isInSelectedRange(s);
           const isStart = rangeStart === s.start;
           const isEnd = rangeEnd === s.start;
-
           const endSelectable = rangeStart ? canSelectAsEnd(s.start) : true;
-          const trulyDisabled =
-            disabled || (rangeStart ? !endSelectable && !isStart : false);
+          const trulyDisabled = disabled || (rangeStart ? !endSelectable && !isStart : false);
 
           const label = mounted
             ? `${fmtLocalTime(s.start)} – ${fmtLocalTime(s.end)}`
@@ -314,17 +245,17 @@ export default function SlotPicker({
               disabled={trulyDisabled}
               onClick={() => handleSlotClick(s)}
               className={[
-                "rounded border px-3 py-2 text-left text-sm",
+                "rounded border px-3 py-2 text-left text-sm transition-colors",
+                // Base font weight and color for readability
+                "font-medium",
                 trulyDisabled
-                  ? "cursor-not-allowed bg-gray-100 text-gray-500"
-                  : "hover:bg-gray-50",
-                inRange ? "border-black" : "",
-                isStart ? "ring-1 ring-black" : "",
-                isEnd ? "ring-1 ring-black" : "",
+                  ? "cursor-not-allowed bg-gray-50 text-gray-400 border-gray-100" // Disabled look
+                  : "text-gray-900 border-gray-200 hover:border-gray-400 hover:bg-gray-50", // Enabled look (Dark Text)
+                inRange ? "!border-black bg-gray-50 ring-1 ring-black" : "", // Selected overrides
               ].join(" ")}
             >
               {label}
-              <span className="ml-2 text-xs">
+              <span className={`ml-2 text-xs font-normal block ${trulyDisabled ? "text-gray-400" : "text-gray-600"}`}>
                 {s.isBooked
                   ? "(unavailable)"
                   : inRange
@@ -338,43 +269,44 @@ export default function SlotPicker({
         })}
       </div>
 
-      <div className="mt-5">
-        <label className="text-xs text-gray-600">Purpose</label>
+      {/* 3. Purpose Input - Darker Labels */}
+      <div className="mt-6">
+        <label className="text-sm font-bold text-black">Purpose</label>
         <input
-          className="mt-1 w-full rounded border px-3 py-2 text-sm"
+          className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:border-black focus:ring-1 focus:ring-black"
           placeholder="e.g. Group study, exam prep, project meeting"
           value={purpose}
           onChange={(e) => setPurpose(e.target.value)}
           disabled={submitting}
         />
-        <p className="mt-1 text-xs text-gray-500">Minimum 3 characters.</p>
+        <p className="mt-1 text-xs text-gray-500 font-medium">Minimum 3 characters.</p>
       </div>
 
-      <div className="mt-5 flex items-center justify-between gap-3">
+      {/* 4. Footer Actions */}
+      <div className="mt-6 flex items-center justify-between gap-3 border-t pt-4">
         <div className="text-sm">
-          <span className="text-gray-600">Selected: </span>
+          <span className="font-medium text-gray-700">Selected: </span>
           {bookingRange && mounted ? (
-            <span className="font-medium">
+            <span className="font-bold text-black">
               {fmtLocalTime(bookingRange.start)} – {fmtLocalTime(bookingRange.end)}{" "}
-              <span className="text-gray-500">
+              <span className="font-normal text-gray-500">
                 ({bookingRange.slots} slot{bookingRange.slots > 1 ? "s" : ""})
               </span>
             </span>
           ) : (
-            <span className="text-gray-500">None</span>
+            <span className="text-gray-400 italic">None</span>
           )}
         </div>
 
         <button
           type="button"
           disabled={!canConfirm}
-          className="rounded bg-black px-3 py-2 text-sm text-white disabled:opacity-50"
+          className="rounded bg-black px-4 py-2 text-sm font-bold text-white transition hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400"
           onClick={confirmBooking}
         >
-          {submitting ? "Booking..." : "Confirm"}
+          {submitting ? "Booking..." : "Confirm Booking"}
         </button>
       </div>
     </div>
   );
 }
-

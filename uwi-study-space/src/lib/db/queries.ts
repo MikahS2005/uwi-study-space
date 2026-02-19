@@ -12,22 +12,28 @@ export async function getRoomsFiltered(filters: RoomsFilter) {
 
   let q = supabase
     .from("rooms")
-    .select("id, name, building, floor, capacity, amenities, department:departments(name)")
+    .select("id, name, building, floor, capacity, amenities, image_url, department:departments(name)")
     .eq("is_active", true);
 
-  if (filters.building) q = q.eq("building", filters.building);
-  if (filters.minCapacity) q = q.gte("capacity", filters.minCapacity);
-  if (filters.amenity) q = q.contains("amenities", [filters.amenity]);
+  // 1. Building: Switched to ilike for case-insensitive partial matching
+  if (filters.building) {
+    q = q.ilike("building", `%${filters.building}%`);
+  }
+
+  // 2. Capacity: Keep gte (Greater than or equal)
+  if (filters.minCapacity) {
+    q = q.gte("capacity", filters.minCapacity);
+  }
+
+  // 3. Amenities: Matches if the array contains the selected string
+  if (filters.amenity) {
+    q = q.contains("amenities", [filters.amenity]);
+  }
 
   const { data, error } = await q.order("building").order("name");
   if (error) throw new Error(error.message);
   return data ?? [];
 }
-
-/**
- * Returns room_ids that have at least 1 active booking overlapping [start, end)
- * Uses service role to avoid RLS recursion.
- */
 export async function getBookedRoomIdsBetween(start: string, end: string) {
   const supabase = createSupabaseAdmin(); // ✅ bypass RLS safely
 
@@ -47,5 +53,3 @@ export async function getBookedRoomIdsBetween(start: string, end: string) {
 
   return ids;
 }
-
-
