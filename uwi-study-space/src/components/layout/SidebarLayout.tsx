@@ -187,6 +187,7 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
       { href: "/rooms", label: "Browse Rooms", icon: <IconRooms /> },
       { href: "/schedule", label: "Schedule", icon: <IconSchedule /> },
       { href: "/bookings", label: "My Bookings", icon: <IconBookings /> },
+      { href: "/waitlist", label: "My Waitlist", icon: <IconBookings /> }
     ];
 
     // Admin panel link for admin + super_admin

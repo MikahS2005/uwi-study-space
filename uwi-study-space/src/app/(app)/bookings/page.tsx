@@ -6,6 +6,7 @@ import BookingsFilterBar from "@/components/bookings/BookingsFilterBar";
 import MyBookingsList from "@/components/bookings/MyBookingsList";
 import MyBookingsCalendar from "@/components/bookings/MyBookingsCalendar";
 import MyBookingsMonthCalendar from "@/components/bookings/MyBookingsMonthCalendar";
+import MyOffersPanel from "@/components/bookings/MyOffersPanel";
 
 
 import {
@@ -83,7 +84,7 @@ const initialMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM" stable o
       <p className="mt-1 text-sm text-gray-600">View and cancel your bookings.</p>
 
       <BookingsFilterBar counts={counts} />
-
+      <MyOffersPanel />
       <MyBookingsList
         bookings={rows as any}
         pagination={{ total, page, pageSize }}

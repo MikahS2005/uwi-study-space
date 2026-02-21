@@ -6,6 +6,7 @@ type AuditTargetType =
   | "room"
   | "user"
   | "settings"
+  | "waitlist"
   // New admin features
   | "room_blackout"
   | "room_opening_hours";

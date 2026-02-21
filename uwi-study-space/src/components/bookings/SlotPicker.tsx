@@ -4,9 +4,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+const CAMPUS_TZ = "America/Port_of_Spain";
+
 function fmtLocalTime(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: CAMPUS_TZ });
 }
 
 type Slot = {
@@ -63,6 +65,9 @@ export default function SlotPicker({
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+const [showWaitlistCta, setShowWaitlistCta] = useState(false);
+const [waitlistJoined, setWaitlistJoined] = useState(false);
 
   // ✅ Key change: index by *milliseconds*, not ISO strings
   const slotByStartMs = useMemo(() => {
@@ -189,51 +194,97 @@ export default function SlotPicker({
   const canConfirm = Boolean(bookingRange) && purpose.trim().length >= 3 && !submitting;
 
   async function confirmBooking() {
-    if (!bookingRange) return;
+  if (!bookingRange) return;
 
-    setSubmitting(true);
-    setErrorMsg(null);
-    setSuccessMsg(null);
+  setSubmitting(true);
+  setErrorMsg(null);
+  setSuccessMsg(null);
+  setShowWaitlistCta(false);
+  setWaitlistJoined(false);
+
+  try {
+    const res = await fetch("/api/bookings/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roomId,
+        start: bookingRange.start,
+        end: bookingRange.end,
+        purpose: purpose.trim(),
+      }),
+    });
+
+    const data = (await res.json().catch(() => null)) as any;
+
+    // ✅ Special: booked conflict => show waitlist CTA
+    if (res.status === 409 && data?.code === "ROOM_BOOKED" && data?.canWaitlist) {
+      setErrorMsg(data?.message ?? "That room is already booked for this time.");
+      setShowWaitlistCta(true);
+      setSubmitting(false);
+      return;
+    }
+
+    if (!res.ok) {
+      setErrorMsg(data?.error ?? "Booking failed");
+      setSubmitting(false);
+      return;
+    }
+
+    setSuccessMsg("Booking confirmed.");
+    setSubmitting(false);
+    onBooked?.();
 
     try {
-      const res = await fetch("/api/bookings/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          roomId,
-          start: bookingRange.start,
-          end: bookingRange.end,
-          purpose: purpose.trim(),
-        }),
-      });
+      const qs = typeof window !== "undefined" ? window.location.search : "";
+      router.replace(window.location.pathname + qs);
+    } catch {}
 
-      const data = (await res.json().catch(() => null)) as any;
+    router.refresh();
 
-      if (!res.ok) {
-        setErrorMsg(data?.error ?? "Booking failed");
-        setSubmitting(false);
-        return;
-      }
-
-      setSuccessMsg("Booking confirmed.");
-      setSubmitting(false);
-      onBooked?.();
-
-      try {
-        const qs = typeof window !== "undefined" ? window.location.search : "";
-        router.replace(window.location.pathname + qs);
-      } catch {}
-
-      router.refresh();
-
-      setRangeStart(null);
-      setRangeEnd(null);
-      setPurpose("");
-    } catch {
-      setErrorMsg("Network error. Please try again.");
-      setSubmitting(false);
-    }
+    setRangeStart(null);
+    setRangeEnd(null);
+    setPurpose("");
+  } catch {
+    setErrorMsg("Network error. Please try again.");
+    setSubmitting(false);
   }
+}
+
+async function joinWaitlist() {
+  if (!bookingRange) return;
+
+  setSubmitting(true);
+  setErrorMsg(null);
+
+  try {
+    const res = await fetch("/api/waitlist/join", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roomId,
+        start: bookingRange.start,
+        end: bookingRange.end,
+      }),
+    });
+
+    const data = (await res.json().catch(() => null)) as any;
+
+    if (!res.ok) {
+      setErrorMsg(data?.error ?? "Failed to join waitlist");
+      setSubmitting(false);
+      return;
+    }
+
+    setWaitlistJoined(true);
+    setShowWaitlistCta(false);
+    setSubmitting(false);
+    setSuccessMsg("Joined waitlist. Watch your offers for an expiry timer.");
+    router.refresh();
+  } catch {
+    setErrorMsg("Network error. Please try again.");
+    setSubmitting(false);
+  }
+}
 
   function isInSelectedRange(s: Slot) {
     return selectedSlots.some((x) => x.start === s.start);
@@ -349,6 +400,23 @@ export default function SlotPicker({
         >
           {submitting ? "Booking..." : "Confirm Booking"}
         </button>
+
+        {showWaitlistCta && bookingRange ? (
+        <button
+          type="button"
+          disabled={submitting}
+          onClick={joinWaitlist}
+          className="rounded border border-black bg-white px-4 py-2 text-sm font-bold text-black transition hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400"
+        >
+          {submitting ? "Joining..." : "Join Waitlist"}
+        </button>
+      ) : null}
+
+      {waitlistJoined ? (
+        <div className="mt-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 font-medium">
+          You’re on the waitlist for that slot.
+        </div>
+      ) : null}
       </div>
     </div>
   );

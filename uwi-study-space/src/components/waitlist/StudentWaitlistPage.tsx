@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatTtDateTime } from "@/lib/utils/datetime";
 import ExpiryCountdown from "@/components/shared/ExpiryCountdown";
-
-type Mode = "admin" | "super_admin";
+import { formatTtDateTime } from "@/lib/utils/datetime";
 
 type Row = {
   id: number;
@@ -14,18 +12,10 @@ type Row = {
   status: "waiting" | "offered" | "accepted" | "expired";
   offer_expires_at: string | null;
   created_at: string;
-  user_id: string;
-  room: null | {
-    id: number;
-    name: string;
-    building: string;
-    floor: string | null;
-    department_id: number;
-    department: null | { name: string };
-  };
+  room: null | { id: number; name: string; building: string; floor: string | null; department_id: number };
 };
 
-export default function WaitlistManagement({ mode }: { mode: Mode }) {
+export default function StudentWaitlistPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -34,7 +24,7 @@ export default function WaitlistManagement({ mode }: { mode: Mode }) {
     setLoading(true);
     setErr("");
     try {
-      const res = await fetch("/api/admin/waitlist/list");
+      const res = await fetch("/api/waitlist/my");
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Failed to load waitlist");
       setRows(json.rows ?? []);
@@ -50,10 +40,8 @@ export default function WaitlistManagement({ mode }: { mode: Mode }) {
     load();
   }, []);
 
-  async function offer(waitlistId: number) {
-    if (!confirm("Send offer to this student?")) return;
-
-    const res = await fetch("/api/admin/waitlist/offer", {
+  async function accept(waitlistId: number) {
+    const res = await fetch("/api/waitlist/accept", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ waitlistId }),
@@ -61,35 +49,30 @@ export default function WaitlistManagement({ mode }: { mode: Mode }) {
 
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(json?.error ?? "Failed to offer");
+      alert(json?.error ?? "Failed to accept offer");
       return;
     }
 
     await load();
+    alert("Offer accepted! Booking created.");
   }
-
-  const title = mode === "super_admin" ? "Waitlist (Super Admin)" : "Waitlist";
 
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
       <div className="mb-4">
-        <h1 className="text-lg font-semibold text-slate-900">{title}</h1>
+        <h1 className="text-lg font-semibold text-slate-900">My Waitlist & Offers</h1>
         <p className="text-sm text-slate-600">
-          Offer waitlist slots to students. Students accept offers on their end.
+          If you receive an offer, accept it before it expires. Times are shown in Trinidad (America/Port_of_Spain).
         </p>
       </div>
 
       {err ? (
-        <div className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700 ring-1 ring-rose-200">
-          {err}
-        </div>
+        <div className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700 ring-1 ring-rose-200">{err}</div>
       ) : loading ? (
-        <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-200">
-          Loading…
-        </div>
+        <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-200">Loading…</div>
       ) : rows.length === 0 ? (
         <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-200">
-          No waitlist entries found.
+          You have no waitlist entries.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl ring-1 ring-slate-200">
@@ -100,25 +83,23 @@ export default function WaitlistManagement({ mode }: { mode: Mode }) {
                 <th className="px-4 py-3">Start</th>
                 <th className="px-4 py-3">End</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Offer Expires</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-4 py-3">Offer</th>
+                <th className="px-4 py-3 text-right">Action</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((w) => {
                 const roomName = w.room?.name ?? `Room #${w.room_id}`;
-                const offerTxt = formatTtDateTime(w.offer_expires_at);
-
-                const canOffer = w.status === "waiting" || w.status === "expired";
+                const canAccept =
+                  w.status === "offered" &&
+                  w.offer_expires_at &&
+                  Date.parse(w.offer_expires_at) > Date.now();
 
                 return (
                   <tr key={w.id} className="border-b last:border-b-0">
                     <td className="px-4 py-3">
                       <div className="font-medium text-slate-900">{roomName}</div>
-                      <div className="text-xs text-slate-500">
-                        {(w.room?.building ?? "").toString()}
-                        {w.room?.department?.name ? ` • ${w.room.department.name}` : ""}
-                      </div>
+                      <div className="text-xs text-slate-500">{w.room?.building ?? ""}</div>
                     </td>
                     <td className="px-4 py-3 text-slate-700">{formatTtDateTime(w.start_time)}</td>
                     <td className="px-4 py-3 text-slate-700">{formatTtDateTime(w.end_time)}</td>
@@ -127,21 +108,17 @@ export default function WaitlistManagement({ mode }: { mode: Mode }) {
                         {w.status}
                       </span>
                     </td>
-                                      <td className="px-4 py-3">
-                    {w.status === "offered" ? (
-                      <ExpiryCountdown iso={w.offer_expires_at} />
-                    ) : (
-                      <span className="text-slate-500">—</span>
-                    )}
-                  </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        {canOffer ? (
+                      {w.status === "offered" ? <ExpiryCountdown iso={w.offer_expires_at} /> : <span>—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end">
+                        {canAccept ? (
                           <button
-                            onClick={() => offer(w.id)}
+                            onClick={() => accept(w.id)}
                             className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800"
                           >
-                            Offer
+                            Accept
                           </button>
                         ) : (
                           <span className="text-xs text-slate-400">—</span>

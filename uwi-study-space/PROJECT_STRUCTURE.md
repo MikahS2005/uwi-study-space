@@ -61,20 +61,31 @@ uwi-study-space/
 │   │   │   ├── departments/
 │   │   │   │   └── route.ts        # GET /api/departments (list all)
 │   │   │   ├── bookings/
+│   │   │   │   ├── route.ts        # Booking operations (student)
 │   │   │   │   └── create/
-│   │   │   │       └── route.ts    # POST /api/bookings/create (student booking)
+│   │   │   │       └── route.ts    # POST create student booking
+│   │   │   ├── rooms/
+│   │   │   │   └── route.ts        # Room queries & operations
 │   │   │   ├── admin/
-│   │   │   │   ├── toggle-active/
-│   │   │   │   │   └── route.ts    # POST toggle room active state
+│   │   │   │   ├── bookings/
+│   │   │   │   │   └── route.ts    # GET admin bookings
 │   │   │   │   ├── create-booking/
 │   │   │   │   │   └── route.ts    # POST admin creates booking for user/external
 │   │   │   │   ├── mark-no-show/
 │   │   │   │   │   └── route.ts    # POST mark booking as no_show
 │   │   │   │   ├── rooms/
-│   │   │   │   │   └── update/
-│   │   │   │   │       └── route.ts # PATCH update room details
-│   │   │   │   └── settings/
-│   │   │   │       └── route.ts    # PATCH update global settings (super admin)
+│   │   │   │   │   └── route.ts    # Room management operations
+│   │   │   │   ├── departments/
+│   │   │   │   │   └── route.ts    # Admin department operations
+│   │   │   │   ├── reports/
+│   │   │   │   │   └── route.ts    # Admin reports
+│   │   │   │   ├── students/
+│   │   │   │   │   └── route.ts    # Admin student operations
+│   │   │   │   ├── settings/
+│   │   │   │   │   └── route.ts    # Admin settings access
+│   │   │   │   ├── waitlist/
+│   │   │   │   │   └── (waitlist operations)
+│   │   │   │   └── (other admin operations)
 │   │   │   └── super-admin/
 │   │   │       ├── users/
 │   │   │       │   ├── list/
@@ -82,49 +93,61 @@ uwi-study-space/
 │   │   │       │   └── update-role/
 │   │   │       │       └── route.ts # POST update user role
 │   │   │       ├── scopes/
-│   │   │       │   └── set-departments/
-│   │   │       │       └── route.ts # POST set admin department scope
-│   │   │       └── departments/
-│   │   │           ├── create/
-│   │   │           ├── list/
-│   │   │           ├── rename/
-│   │   │           └── delete/
-│   │   │               └── route.ts # CRUD for departments
+│   │   │       │   └── (scope management)
+│   │   │       ├── departments/
+│   │   │       │   └── (department crud)
+│   │   │       ├── bookings/
+│   │   │       │   └── route.ts    # Super admin bookings
+│   │   │       ├── reports/
+│   │   │       │   └── route.ts    # Global reports
+│   │   │       ├── rooms/
+│   │   │       │   └── route.ts    # Global room management
+│   │   │       ├── settings/
+│   │   │       │   └── route.ts    # Global settings management
+│   │   │       ├── users/
+│   │   │       │   └── (user management)
+│   │   │       ├── waitlist/
+│   │   │       │   └── (global waitlist)
+│   │   │       └── (other super-admin operations)
 │   │   ├── layout.tsx              # Root layout
 │   │   ├── page.tsx                # Public landing page
 │   │   └── globals.css             # Global Tailwind styles
 │   │
 │   ├── components/
 │   │   ├── auth/
-│   │   │   ├── UserBar.tsx         # Show current user email + role
-│   │   │   └── ProfileCompletionGate.tsx # Redirect if profile incomplete
+│   │   │   ├── UserBar.tsx                 # Show current user email + role
+│   │   │   └── ProfileCompletionGate.tsx  # Redirect if profile incomplete
 │   │   ├── layout/
-│   │   │   └── SidebarLayout.tsx   # Main sidebar + nav (student/admin/super-admin versions)
+│   │   │   └── SidebarLayout.tsx          # Main sidebar + nav (student/admin/super-admin versions)
 │   │   ├── rooms/
-│   │   │   ├── Filters.tsx         # Building, capacity, amenity filters
-│   │   │   ├── RoomCard.tsx        # Room card with status, hours, amenities
-│   │   │   ├── RoomsDatePicker.tsx # Date carousel (7-day view)
-│   │   │   └── RoomsByDepartment.tsx # (optional) Group rooms by dept
+│   │   │   ├── Filters.tsx                # Building, capacity, amenity filters
+│   │   │   ├── RoomCard.tsx               # Room card with status, hours, amenities
+│   │   │   └── RoomsDatePicker.tsx        # Date carousel (7-day view)
 │   │   ├── bookings/
-│   │   │   ├── BookingsFilterBar.tsx    # When/status/view mode filters
-│   │   │   ├── MyBookingsList.tsx       # Booking cards with pagination
-│   │   │   ├── MyBookingsCalendar.tsx   # Calendar view of bookings
-│   │   │   ├── MyBookingsMonthCalendar.tsx # Month calendar for bookings
-│   │   │   └── SlotPickerModal.tsx      # Modal to select time slots
+│   │   │   ├── BookingsFilterBar.tsx           # When/status/view mode filters
+│   │   │   ├── MyBookingsList.tsx              # Booking cards with pagination
+│   │   │   ├── MyBookingsCalendar.tsx          # Calendar view of bookings
+│   │   │   ├── MyBookingsMonthCalendar.tsx     # Month calendar for bookings
+│   │   │   ├── SlotPicker.tsx                  # Reusable slot selection component
+│   │   │   ├── SlotPickerModal.tsx             # Modal wrapper for slot picker
+│   │   │   ├── SlotPickerModalAutoOpen.tsx     # Auto-opening modal for slots
+│   │   │   └── useRoomAvailability.ts          # Hook for room availability data
 │   │   ├── schedule/
-│   │   │   ├── ScheduleClient.tsx  # Month selector, day picker, quick book
-│   │   │   └── ScheduleGrid.tsx    # Time-grid view of rooms + busy intervals
+│   │   │   ├── ScheduleClient.tsx         # Month selector, day picker, quick book
+│   │   │   └── ScheduleGrid.tsx           # Time-grid view of rooms + busy intervals
 │   │   ├── admin/
+│   │   │   ├── NewRoomButton.tsx          # Button to create new room
+│   │   │   ├── NewRoomModal.tsx           # Modal for room creation
+│   │   │   ├── RoomEditModal.tsx          # Edit room details
+│   │   │   ├── RoomRowActions.tsx         # Toggle active, edit, delete actions
 │   │   │   ├── rooms/
-│   │   │   │   ├── RoomsManagementPage.tsx # Shared rooms mgmt (admin + super-admin)
-│   │   │   │   ├── RoomEditModal.tsx       # Edit room details
-│   │   │   │   └── RoomRowActions.tsx      # Toggle active, edit, delete
+│   │   │   │   └── (Room management components)
 │   │   │   ├── bookings/
-│   │   │   │   └── AdminBookingsList.tsx   # Admin view of bookings
+│   │   │   │   └── (Booking management components)
+│   │   │   ├── reports/
+│   │   │   │   └── (Report components)
 │   │   │   └── waitlist/
-│   │   │       └── WaitlistManagement.tsx  # Waitlist CRUD
-│   │   └── shared/
-│   │       └── (future shared components)
+│   │   │       └── (Waitlist management components)
 │   │
 │   ├── lib/
 │   │   ├── supabase/
@@ -257,6 +280,7 @@ npm run format
 
 ## Notes
 
+- **Middleware Deprecated**: The `middleware.ts` file convention is deprecated in Next.js. Consider migrating to the "proxy" pattern instead.
 - **RLS**: Row-level security enforces per-user/role access on the Supabase side
 - **Service Role**: Admin API routes use service role (bypasses RLS) with explicit authorization checks
 - **Audit Logging**: Best-effort; failures don't block main operations

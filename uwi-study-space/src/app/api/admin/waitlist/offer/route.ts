@@ -1,9 +1,9 @@
-// src/app/api/admin/waitlist/offer/route.ts
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { getSettings } from "@/lib/db/settings";
 import { adminHasRoomAccess } from "@/lib/db/adminScopes";
+import { getSettings } from "@/lib/db/settings";
+import { writeAuditLog } from "@/lib/audit/write";
 
 type Role = "student" | "admin" | "super_admin";
 
@@ -11,19 +11,17 @@ export async function POST(req: Request) {
   const supabase = await createSupabaseServer();
   const admin = createSupabaseAdmin();
 
-  // 1) Auth
+  // Auth
   const {
     data: { user },
-    error: authErr,
+    error: authError,
   } = await supabase.auth.getUser();
 
-  if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // 2) Role via RPC (avoid RLS recursion)
-  const { data: meRows, error: meErr } = await supabase.rpc("get_my_profile");
-  if (meErr) {
-    return NextResponse.json({ error: "Profile lookup failed", detail: meErr.message }, { status: 500 });
-  }
+  // Role
+  const { data: meRows, error: meError } = await supabase.rpc("get_my_profile");
+  if (meError) return NextResponse.json({ error: "Profile lookup failed" }, { status: 500 });
 
   const me = Array.isArray(meRows) ? meRows[0] : null;
   const role = (me?.role ?? null) as Role | null;
@@ -32,48 +30,35 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // 3) Body
   const body = await req.json().catch(() => null);
   const waitlistId = Number(body?.waitlistId);
 
   if (!Number.isFinite(waitlistId)) {
-    return NextResponse.json({ error: "Missing waitlistId" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  // 4) Load waitlist entry (service role, but we will enforce access below)
-  const { data: w, error: wErr } = await admin
+  // Load waitlist row (service role so we can read regardless of RLS)
+  const { data: wl, error: wlErr } = await admin
     .from("waitlist")
-    .select("id, room_id, status, offer_expires_at")
+    .select("id, room_id, user_id, status, start_time, end_time")
     .eq("id", waitlistId)
     .single();
 
-  if (wErr || !w) {
+  if (wlErr || !wl) {
     return NextResponse.json({ error: "Waitlist entry not found" }, { status: 404 });
   }
 
-  const status = String(w.status ?? "").toLowerCase();
-
-  // Only allow offering from waiting/expired (simple rule)
-  if (status !== "waiting" && status !== "expired") {
-    return NextResponse.json(
-      { error: `Cannot offer when status is '${w.status}'.` },
-      { status: 400 },
-    );
-  }
-
-  // 5) Scope check (admins must have access to this room)
+  // Scope check (department admin must have access)
   if (role === "admin") {
-    const ok = await adminHasRoomAccess(Number(w.room_id));
-    if (!ok) return NextResponse.json({ error: "Forbidden (out of scope)" }, { status: 403 });
+    const ok = await adminHasRoomAccess(Number(wl.room_id));
+    if (!ok) return NextResponse.json({ error: "Out of scope" }, { status: 403 });
   }
 
-  // 6) Compute expiry based on settings
   const settings = await getSettings();
   const offerMinutes = Number(settings.waitlist_offer_minutes ?? 30);
-
   const expiresAt = new Date(Date.now() + offerMinutes * 60 * 1000).toISOString();
 
-  // 7) Update waitlist
+  // Mark as offered + set expiry
   const { error: upErr } = await admin
     .from("waitlist")
     .update({
@@ -85,6 +70,15 @@ export async function POST(req: Request) {
   if (upErr) {
     return NextResponse.json({ error: "Offer failed", detail: upErr.message }, { status: 500 });
   }
+
+  // Audit (best effort)
+  writeAuditLog({
+    actorUserId: user.id,
+    action: "waitlist.offer",
+    targetType: "waitlist",
+    targetId: waitlistId,
+    meta: { roomId: wl.room_id, start: wl.start_time, end: wl.end_time, expiresAt },
+  }).catch(() => {});
 
   return NextResponse.json({ ok: true, offer_expires_at: expiresAt });
 }
