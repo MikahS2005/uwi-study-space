@@ -1,95 +1,124 @@
 // src/components/bookings/SlotPickerModal.tsx
+// src/components/bookings/SlotPickerModalAutoOpen.tsx
 "use client";
 
-/**
- * SlotPickerModal
- * - Keeps SlotPicker in a popup instead of inline on the page.
- * - UI team can redesign modal visuals later; keep structure + props.
- */
-
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import SlotPicker from "@/components/bookings/SlotPicker";
 
-type Slot = {
-  start: string;
-  end: string;
-  isBooked: boolean;
-};
+type Slot = { start: string; end: string; isBooked: boolean };
 
-export default function SlotPickerModal(props: {
-  roomId: number;
-  date: string; // YYYY-MM-DD (for display only)
-  slots: Slot[];
-  slotMinutes: number;
-  maxConsecutive: number;
-  maxDurationHours: number;
+export default function SlotPickerModalAutoOpen(props: {
+  dto: {
+    roomId: number;
+    roomName: string;
+    date: string;
+    slots: Slot[];
+    slotMinutes: number;
+    bufferMinutes: number;
+    maxConsecutive: number;      // hours (from server)
+    maxDurationHours: number;    // hours (from server)
+  };
 }) {
-  const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const sp = useSearchParams();
 
-  // Close on Escape
+  const [open, setOpen] = useState(true);
+
+  // Safety: ensure we always pass real numbers to SlotPicker (prevents NaN)
+  const safe = useMemo(() => {
+    const d = props.dto;
+
+    const slotMinutes = Number(d.slotMinutes);
+    const bufferMinutes = Number(d.bufferMinutes);
+
+    const maxConsecutiveHours = Number(d.maxConsecutive);
+    const maxBookingDurationHours = Number(d.maxDurationHours);
+
+    return {
+      ...d,
+      slotMinutes: Number.isFinite(slotMinutes) ? slotMinutes : 60,
+      bufferMinutes: Number.isFinite(bufferMinutes) ? bufferMinutes : 0,
+      maxConsecutiveHours: Number.isFinite(maxConsecutiveHours) ? maxConsecutiveHours : 1,
+      maxBookingDurationHours: Number.isFinite(maxBookingDurationHours) ? maxBookingDurationHours : 1,
+    };
+  }, [props.dto]);
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, []);
+
+  const closeUrl = useMemo(() => {
+    const next = new URLSearchParams(sp.toString());
+    next.delete("bookRoomId");
+    const qs = next.toString();
+    return `${pathname}${qs ? `?${qs}` : ""}`;
+  }, [sp, pathname]);
+
+  const close = useCallback(() => {
+    setOpen(false);
+    router.replace(closeUrl);
+    router.refresh();
+  }, [router, closeUrl]);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") close();
     }
-    if (open) window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  }, [close]);
+
+  if (!open) return null;
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-      >
-        Book this room
-      </button>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        onClick={close}
+        className="fixed inset-0 h-full w-full bg-black/60 backdrop-blur-md"
+        aria-hidden="true"
+      />
 
-      {open ? (
-        <div className="fixed inset-0 z-50">
-          {/* Backdrop */}
+      {/* Modal Panel */}
+      <div className="relative z-[10000] w-full max-w-[760px] rounded-2xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+        {/* Header */}
+        <div className="flex items-start justify-between border-b border-gray-100 pb-4 mb-4">
+          <div>
+            <h2 className="text-2xl font-bold text-black tracking-tight">
+              Book this room ({safe.roomName})
+            </h2>
+            <p className="mt-1 text-sm font-medium text-gray-800">
+              Date: <span className="font-bold text-black">{safe.date}</span>
+            </p>
+          </div>
+
           <button
             type="button"
-            aria-label="Close modal"
-            onClick={() => setOpen(false)}
-            className="absolute inset-0 cursor-default bg-black/40"
-          />
-
-          {/* Modal panel */}
-          <div className="absolute left-1/2 top-1/2 w-[min(720px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-5 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold">Select a time</h2>
-                <p className="mt-1 text-sm text-neutral-600">
-                  Date: <span className="font-medium">{props.date}</span>
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50"
-              >
-                Close
-              </button>
-            </div>
-
-            {/* SlotPicker inside the modal */}
-            <div className="mt-4">
-                <SlotPicker
-                roomId={props.roomId}
-                slots={props.slots}
-                slotMinutes={props.slotMinutes}
-                maxConsecutive={props.maxConsecutive}
-                maxDurationHours={props.maxDurationHours}
-                onBooked={() => setOpen(false)}
-                />
-
-
-            </div>
-          </div>
+            onClick={close}
+            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-black shadow-sm hover:bg-gray-50 hover:border-gray-400"
+          >
+            Close
+          </button>
         </div>
-      ) : null}
-    </>
+
+        {/* Slot Selection */}
+        <div className="max-h-[65vh] overflow-y-auto pr-1">
+          <SlotPicker
+            roomId={safe.roomId}
+            slots={safe.slots}
+            slotMinutes={safe.slotMinutes}
+            bufferMinutes={safe.bufferMinutes}
+            maxConsecutiveHours={safe.maxConsecutiveHours}
+            maxBookingDurationHours={safe.maxBookingDurationHours}
+            onBooked={close}
+          />
+        </div>
+      </div>
+    </div>
   );
 }

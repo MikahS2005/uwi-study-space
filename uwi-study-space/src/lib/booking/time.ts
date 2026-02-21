@@ -45,19 +45,24 @@ export function buildSlotsForDay(
 
   const slots: { start: string; end: string }[] = [];
 
-  for (let h = startHour; h < endHour; h += 1) {
-    const startMs = Date.UTC(p.y, p.m - 1, p.d, h, 0, 0, 0);
-    const endMs = startMs + slotMinutes * 60 * 1000;
+  const startOfDayMs = Date.UTC(p.y, p.m - 1, p.d, startHour, 0, 0, 0);
+  const endOfDayMs = Date.UTC(p.y, p.m - 1, p.d, endHour, 0, 0, 0);
+
+  for (
+    let currentMs = startOfDayMs;
+    currentMs + slotMinutes * 60 * 1000 <= endOfDayMs;
+    currentMs += slotMinutes * 60 * 1000
+  ) {
+    const endMs = currentMs + slotMinutes * 60 * 1000;
 
     slots.push({
-      start: new Date(startMs).toISOString(),
+      start: new Date(currentMs).toISOString(),
       end: new Date(endMs).toISOString(),
     });
   }
 
   return slots;
 }
-
 /**
  * Format time for display.
  * NOTE: This formats in the user's local timezone (fine for UI),

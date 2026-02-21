@@ -4,6 +4,7 @@
 //   /api/rooms/12/availability?date=2026-02-16
 //
 // Returns slots[] shaped for SlotPicker.
+export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";

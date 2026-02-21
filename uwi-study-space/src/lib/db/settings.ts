@@ -30,6 +30,7 @@ export async function updateSettings(patch: Record<string, unknown>) {
     "no_show_threshold",
     "no_show_window_days",
     "slot_minutes",
+    "waitlist_offer_minutes", 
   ]);
 
   const safePatch: Record<string, unknown> = {};

@@ -1,32 +1,45 @@
 // src/components/admin/RoomRowActions.tsx
+//
 // Client-side actions for each room row (Admin Rooms page).
 //
 // Why client component?
-// - Buttons need to call API routes (fetch)
-// - After a successful toggle, we call router.refresh() to re-render the Server Component page.
+// - Buttons call API routes (fetch)
+// - After mutations, we call router.refresh() to re-render the Server Component page.
+//
+// Current actions:
+// - Edit (opens RoomEditModal; saves via /api/admin/rooms/update)
+// - Toggle Active (POST /api/admin/rooms/toggle-active)
 
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import type { RoomRow } from "@/lib/db/rooms";
+import { RoomEditModal } from "@/components/admin/RoomEditModal";
 
-export function RoomRowActions({ roomId }: { roomId: number }) {
+export function RoomRowActions({ room }: { room: RoomRow }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+
+  // Keep separate busy flags so Edit does not block Toggle and vice-versa.
+  const [toggleBusy, setToggleBusy] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   async function onToggle() {
     try {
-      setBusy(true);
+      setToggleBusy(true);
 
       const res = await fetch("/api/admin/rooms/toggle-active", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId }),
+        body: JSON.stringify({ roomId: room.id }),
       });
 
+      const payload = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const msg = await res.json().catch(() => ({}));
-        throw new Error(msg?.error ?? "Failed to toggle room");
+        // ✅ Log in console for debugging (keeps UI clean)
+        console.error("Toggle Active failed:", { status: res.status, payload });
+        throw new Error(payload?.error ?? `Failed (${res.status})`);
       }
 
       // Re-fetch Server Component data (rooms list) after mutation
@@ -34,17 +47,33 @@ export function RoomRowActions({ roomId }: { roomId: number }) {
     } catch (e: any) {
       alert(e?.message ?? "Something went wrong");
     } finally {
-      setBusy(false);
+      setToggleBusy(false);
     }
   }
 
   return (
     <div className="flex items-center gap-2">
+      {/* Edit modal (prefilled instantly from `room`) */}
+      <RoomEditModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        room={{
+          id: room.id,
+          name: room.name,
+          building: room.building,
+          floor: room.floor ?? null,
+          capacity: room.capacity,
+          amenities: room.amenities ?? [],
+          is_active: room.is_active,
+        }}
+        onSaved={() => router.refresh()}
+      />
+
       <button
         type="button"
         className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-        disabled={busy}
-        onClick={() => alert("Next step: wire up Edit modal + save endpoint.")}
+        disabled={toggleBusy}
+        onClick={() => setEditOpen(true)}
       >
         Edit
       </button>
@@ -52,10 +81,10 @@ export function RoomRowActions({ roomId }: { roomId: number }) {
       <button
         type="button"
         className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-        disabled={busy}
+        disabled={toggleBusy}
         onClick={onToggle}
       >
-        {busy ? "Toggling..." : "Toggle Active"}
+        {toggleBusy ? "Toggling..." : room.is_active === false ? "Activate" : "Deactivate"}
       </button>
     </div>
   );

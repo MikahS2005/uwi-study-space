@@ -5,18 +5,23 @@ import { writeAuditLog } from "@/lib/audit/write";
 
 /**
  * Admin/Super Admin marks a booking as no_show.
+ *
  * Server enforces:
  * - authenticated
  * - role in (admin, super_admin)
- * - scope check (unless super_admin)
+ * - scope check (unless super_admin) via SQL function admin_has_room_access
  * - booking exists and is currently active
- * - update via service role
+ * - prevents marking a future booking as no_show
+ * - update via service role (RLS bypass)
  * - audit log (best effort)
  */
 export async function POST(req: Request) {
   const supabase = await createSupabaseServer();
+  const admin = createSupabaseAdmin();
 
+  // ---------------------------------------------------------------------------
   // 1) Auth
+  // ---------------------------------------------------------------------------
   const {
     data: { user },
     error: authError,
@@ -26,7 +31,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // ---------------------------------------------------------------------------
   // 2) Role via RPC (avoid RLS recursion)
+  // ---------------------------------------------------------------------------
   const { data: meRows, error: meError } = await supabase.rpc("get_my_profile");
   if (meError) {
     return NextResponse.json(
@@ -42,17 +49,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // 3) Parse body
+  // ---------------------------------------------------------------------------
+  // 3) Parse + validate body
+  // ---------------------------------------------------------------------------
   const body = await req.json().catch(() => null);
-  const bookingId = String(body?.bookingId ?? "");
+  const bookingId = Number(body?.bookingId);
 
-  if (!bookingId) {
-    return NextResponse.json({ error: "Missing bookingId" }, { status: 400 });
+  if (!Number.isFinite(bookingId) || bookingId <= 0) {
+    return NextResponse.json({ error: "Invalid bookingId" }, { status: 400 });
   }
 
-  // 4) Read booking (service role for reliable read)
-  const admin = createSupabaseAdmin();
-
+  // ---------------------------------------------------------------------------
+  // 4) Read booking using service role (reliable read)
+  // ---------------------------------------------------------------------------
   const { data: booking, error: bookingErr } = await admin
     .from("bookings")
     .select("id, status, room_id, booked_for_user_id, start_time, end_time")
@@ -63,47 +72,49 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Booking not found" }, { status: 404 });
   }
 
-  // only allow marking active bookings as no_show
+  // Only allow marking ACTIVE bookings as no_show
   if (booking.status !== "active") {
-    return NextResponse.json({ error: "Only active bookings can be marked no-show" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Only active bookings can be marked no-show" },
+      { status: 400 },
+    );
   }
 
-  // 5) Scope check for admins (super_admin bypass)
-  if (role !== "super_admin") {
-    const { data: scopes, error: scopeErr } = await supabase
-      .from("admin_scopes")
-      .select("room_id, department_id")
-      .eq("admin_user_id", user.id);
+  // Prevent marking FUTURE bookings as no-show
+  const now = new Date();
+  const start = new Date(booking.start_time);
+  if (start > now) {
+    return NextResponse.json(
+      { error: "Cannot mark a booking as no-show before it starts" },
+      { status: 400 },
+    );
+  }
 
-    if (scopeErr) {
+  // ---------------------------------------------------------------------------
+  // 5) Scope check for admins (super_admin bypass)
+  // ---------------------------------------------------------------------------
+  if (role !== "super_admin") {
+    // Uses auth.uid() under the hood, so must be called with user client.
+    const { data: canAccess, error: accessErr } = await supabase.rpc(
+      "admin_has_room_access",
+      { target_room_id: booking.room_id },
+    );
+
+    if (accessErr) {
       return NextResponse.json(
-        { error: "Scope lookup failed", detail: scopeErr.message },
+        { error: "Scope check failed", detail: accessErr.message },
         { status: 500 },
       );
     }
 
-    const { data: roomRow, error: roomErr } = await supabase
-      .from("rooms")
-      .select("id, department_id")
-      .eq("id", booking.room_id)
-      .maybeSingle();
-
-    if (roomErr || !roomRow) {
-      return NextResponse.json({ error: "Room not found" }, { status: 404 });
-    }
-
-    const hasAccess = (scopes ?? []).some(
-      (s) =>
-        s.room_id === booking.room_id ||
-        (s.department_id && s.department_id === roomRow.department_id),
-    );
-
-    if (!hasAccess) {
+    if (canAccess !== true) {
       return NextResponse.json({ error: "Forbidden (no scope)" }, { status: 403 });
     }
   }
 
+  // ---------------------------------------------------------------------------
   // 6) Update (guard: active -> no_show)
+  // ---------------------------------------------------------------------------
   const { error: updErr } = await admin
     .from("bookings")
     .update({ status: "no_show" })
@@ -114,7 +125,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Update failed", detail: updErr.message }, { status: 400 });
   }
 
+  // ---------------------------------------------------------------------------
   // 7) Audit (best effort)
+  // ---------------------------------------------------------------------------
   writeAuditLog({
     actorUserId: user.id,
     action: "admin.booking.no_show",
