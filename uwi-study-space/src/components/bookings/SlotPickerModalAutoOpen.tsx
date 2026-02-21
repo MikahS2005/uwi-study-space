@@ -10,10 +10,11 @@ type Slot = { start: string; end: string; isBooked: boolean };
 export default function SlotPickerModalAutoOpen(props: {
   dto: {
     roomId: number;
-    roomName: string; // ✅ Update the type definition
+    roomName: string; 
     date: string;
     slots: Slot[];
     slotMinutes: number;
+    bufferMinutes: number; 
     maxConsecutive: number;
     maxDurationHours: number;
   };
@@ -93,8 +94,9 @@ export default function SlotPickerModalAutoOpen(props: {
             roomId={props.dto.roomId}
             slots={props.dto.slots}
             slotMinutes={props.dto.slotMinutes}
-            maxConsecutive={props.dto.maxConsecutive}
-            maxDurationHours={props.dto.maxDurationHours}
+            bufferMinutes={props.dto.bufferMinutes} 
+            maxConsecutiveHours={props.dto.maxConsecutive}
+            maxBookingDurationHours={props.dto.maxDurationHours}
             onBooked={close}
           />
         </div>

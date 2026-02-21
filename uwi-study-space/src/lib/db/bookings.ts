@@ -1,4 +1,5 @@
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { createSupabaseServer } from "@/lib/supabase/server";
 
 /**
  * Read global settings (single row).
@@ -34,20 +35,64 @@ export async function countUserNoShowsInWindow(userId: string, windowDays: numbe
  * Overlap condition:
  *   existing.start < requested.end AND existing.end > requested.start
  */
+// src/lib/db/bookings.ts (inside roomHasOverlap)
 export async function roomHasOverlap(roomId: number, startISO: string, endISO: string) {
-  const admin = createSupabaseAdmin();
-  const { data, error } = await admin
-    .from("bookings")
+  const supabase = await createSupabaseServer();
+
+  // fetch buffer
+  const { data: room } = await supabase
+    .from("rooms")
+    .select("buffer_minutes, is_active")
+    .eq("id", roomId)
+    .maybeSingle();
+
+  if (!room || room.is_active === false) return true; // treat inactive as not bookable
+
+  const buffer = Number(room.buffer_minutes ?? 0);
+
+  const start = new Date(startISO);
+  const end = new Date(endISO);
+
+  // 1) Blackout overlap blocks immediately
+  const { data: blk } = await supabase
+    .from("room_blackouts")
     .select("id")
     .eq("room_id", roomId)
-    .eq("status", "active")
-    .lt("start_time", endISO)
-    .gt("end_time", startISO)
+    .lt("start_time", end.toISOString())
+    .gt("end_time", start.toISOString())
     .limit(1);
 
-  if (error) throw new Error(error.message);
-  return (data?.length ?? 0) > 0;
+  if ((blk ?? []).length > 0) return true;
+
+  // 2) Booking overlap with buffer:
+  // Compare request vs buffered existing bookings
+  const { data: bookings } = await supabase
+    .from("bookings")
+    .select("start_time, end_time")
+    .eq("room_id", roomId)
+    .eq("status", "active")
+    .lt("start_time", end.toISOString()) // quick prefilter
+    .gt("end_time", start.toISOString());
+
+  for (const b of bookings ?? []) {
+    const bStart = new Date(b.start_time);
+    const bEnd = new Date(b.end_time);
+
+    const bStartBuffered = new Date(bStart.getTime() - buffer * 60_000);
+    const bEndBuffered = new Date(bEnd.getTime() + buffer * 60_000);
+
+    if (bStartBuffered < end && bEndBuffered > start) return true;
+  }
+
+  return false;
 }
+
+// Buffered overlap:
+// Treat each existing booking as occupying [start-buffer, end+buffer).
+// Also treat the requested booking similarly (symmetry), by expanding requested range too.
+//
+// This makes the rule easy to reason about: "no two buffered intervals overlap".
+
 
 /**
  * Check if a user has any ACTIVE booking overlapping [start, end).

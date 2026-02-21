@@ -44,13 +44,20 @@ function normalizeRoom(row: RawRoomRow): RoomRow {
 }
 
 /**
- * Admin Panel room list:
- * - admin: ONLY rooms in their scope (department_id or room_id scope)
- * - super_admin: ALL rooms (including inactive)
+ * Shared Rooms management list for:
+ * - /admin/rooms        (mode="admin")       -> scope-limited
+ * - /super-admin/rooms  (mode="super_admin") -> global list
  *
- * We fetch role via `get_my_profile()` to avoid profiles/RLS recursion.
+ * Defense-in-depth:
+ * - We still check role server-side even though middleware likely blocks bad access.
+ *
+ * IMPORTANT:
+ * - For admin mode: we enforce department_id OR room_id scopes from admin_scopes.
+ * - For super_admin mode: we only return data if role is super_admin.
  */
-export async function getRoomsForAdminPanel(): Promise<RoomRow[]> {
+export async function getRoomsForRoomsManagement(opts: {
+  mode: "admin" | "super_admin";
+}): Promise<RoomRow[]> {
   const supabase = await createSupabaseServer();
 
   // 1) Must be logged in
@@ -59,30 +66,39 @@ export async function getRoomsForAdminPanel(): Promise<RoomRow[]> {
   } = await supabase.auth.getUser();
   if (!user) return [];
 
-  // 2) Get role via SECURITY DEFINER RPC
+  // 2) Get role via SECURITY DEFINER RPC (avoids profiles/RLS recursion issues)
   const { data: meRows } = await supabase.rpc("get_my_profile");
   const me = Array.isArray(meRows) ? meRows[0] : null;
   const role = me?.role ?? null;
 
   // 3) Base rooms query (include department_id for filtering)
-  // NOTE: admins/super admins may need to see inactive rooms to manage them,
-  // so we do NOT force is_active=true here.
+  // NOTE: admin/super_admin need to see inactive rooms in the management UI,
+  // so we do NOT force is_active=true.
   const base = supabase
     .from("rooms")
     .select(
       "id, name, building, floor, capacity, amenities, is_active, department_id, department:departments(name)",
     );
 
-  // 4) Super admin sees everything
-  if (role === "super_admin") {
+  // ---------------------------------------------------------------------------
+  // SUPER ADMIN MODE
+  // ---------------------------------------------------------------------------
+  if (opts.mode === "super_admin") {
+    // Only allow true super admins to see global rooms here.
+    if (role !== "super_admin") return [];
+
     const { data, error } = await base.order("building").order("name");
     if (error) return [];
     return (data ?? []).map(normalizeRoom);
   }
 
-  // 5) Admin must be scoped (department_id OR room_id)
+  // ---------------------------------------------------------------------------
+  // ADMIN MODE
+  // ---------------------------------------------------------------------------
+  // Only admins can use the scoped list.
   if (role !== "admin") return [];
 
+  // Fetch admin scopes for this user
   const { data: scopes, error: scopeErr } = await supabase
     .from("admin_scopes")
     .select("room_id, department_id")
@@ -111,6 +127,15 @@ export async function getRoomsForAdminPanel(): Promise<RoomRow[]> {
   if (error) return [];
 
   return (data ?? []).map(normalizeRoom);
+}
+
+/**
+ * Backwards-compatible wrapper.
+ * Your existing Admin Rooms page used getRoomsForAdminPanel().
+ * We keep it to avoid breaking other imports while we transition.
+ */
+export async function getRoomsForAdminPanel(): Promise<RoomRow[]> {
+  return getRoomsForRoomsManagement({ mode: "admin" });
 }
 
 // ---- your existing functions stay below ----

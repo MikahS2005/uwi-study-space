@@ -6,10 +6,12 @@ import { getRoomsForSchedule, getActiveBookingsBetweenForSchedule } from "@/lib/
 import { buildScheduleMonthDTO } from "@/lib/schedule/buildMonthDTO";
 import ScheduleClient from "@/components/schedule/ScheduleClient";
 
+
 // ✅ reuse your existing logic for slot building
 import { getRoomById, getActiveBookingsForRoomBetween } from "@/lib/db/rooms";
 import { buildSlotsForDay, startOfDay, endOfDay } from "@/lib/booking/time";
 import SlotPickerModalAutoOpen from "@/components/bookings/SlotPickerModalAutoOpen";
+import { getRoomAvailabilityForDate } from "@/lib/db/availability";
 
 export default async function SchedulePage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -74,54 +76,36 @@ export default async function SchedulePage(props: {
   });
 
   // ✅ NEW: build bookingDTO for modal if selected+bookRoomId exist
-  let bookingDTO:
-    | null
-    | {
-        roomId: number;
-        date: string;
-        slots: { start: string; end: string; isBooked: boolean }[];
-        slotMinutes: number;
-        maxConsecutive: number;
-        maxDurationHours: number;
-      } = null;
+    let bookingDTO:
+  | null
+  | {
+      roomId: number;
+      roomName: string;
+      date: string;
+      slots: { start: string; end: string; isBooked: boolean }[];
+      slotMinutes: number;
+      bufferMinutes: number,
+      maxConsecutive: number;
+      maxDurationHours: number;
+    } = null;
 
-  if (bookRoomId && selected) {
-    const room = await getRoomById(bookRoomId);
+if (bookRoomId && selected) {
+  const room = await getRoomById(bookRoomId);
+  if (room) {
+    const avail = await getRoomAvailabilityForDate(bookRoomId, selected);
 
-    if (room) {
-      const dayStart = startOfDay(selected);
-      const dayEnd = endOfDay(selected);
-
-      if (dayStart && dayEnd) {
-        const bookings = await getActiveBookingsForRoomBetween(
-          bookRoomId,
-          dayStart.toISOString(),
-          dayEnd.toISOString(),
-        );
-
-        const openHour = 8;
-        const closeHour = 21;
-
-        const slots = buildSlotsForDay(selected, settings.slot_minutes, openHour, closeHour).map(
-          (s) => {
-            const isBooked = bookings.some(
-              (b) => new Date(b.start_time) < new Date(s.end) && new Date(b.end_time) > new Date(s.start),
-            );
-            return { ...s, isBooked };
-          },
-        );
-
-        bookingDTO = {
-          roomId: bookRoomId,
-          date: selected,
-          slots,
-          slotMinutes: settings.slot_minutes,
-          maxConsecutive: settings.max_consecutive_hours,
-          maxDurationHours: settings.max_booking_duration_hours,
-        };
-      }
-    }
+    bookingDTO = {
+      roomId: bookRoomId,
+      roomName: room.name, // ✅ fixes TS error
+      date: selected,
+      slots: avail.slots,
+      slotMinutes: avail.slotMinutes,
+      bufferMinutes: avail.bufferMinutes,
+      maxConsecutive: avail.maxConsecutiveHours,
+      maxDurationHours: avail.maxBookingDurationHours,
+    };
   }
+}
 
   return (
     <div className="p-6">
