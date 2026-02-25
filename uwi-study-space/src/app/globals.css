@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "tw-animate-css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -11,19 +10,22 @@
 }
 
 @theme {
+  /* 1. Define the Colors */
   --color-primary: #003595;
   --color-primary-soft: #EAF6FF;
   --color-primary-dark: #002366;
+
   --color-secondary: #F3F4F6;
-  --color-background-light: #FFFFFF;
-  --color-background-dark: #121212;
+
   --color-surface-light: #F9FAFB;
   --color-surface-dark: #1E1E1E;
-  --color-text-light: #1F2937;
-  --color-text-dark: #E5E7EB;
+
   --color-border-light: #E5E7EB;
   --color-border-dark: #374151;
+
+  /* 2. Define the Fonts */
   --font-serif: Georgia, serif;
+  --font-sans: "Inter", sans-serif;
 }
 
 /* ─── Base styles ───────────────────────────────────────────────────────── */

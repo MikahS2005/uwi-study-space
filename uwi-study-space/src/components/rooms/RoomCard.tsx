@@ -35,22 +35,19 @@ export default function RoomCard(props: {
   const [isPending, startTransition] = useTransition();
 
   function handleToggleFavorite(e: React.MouseEvent) {
-    e.preventDefault(); 
+    e.preventDefault();
     e.stopPropagation();
-    
-    // Optimistic update
-    setFavorited((prev) => !prev);
+    setFavorited((prev) => !prev); // Optimistic
 
     startTransition(async () => {
       try {
         await toggleFavoriteAction(roomId);
       } catch (err) {
-        setFavorited((prev) => !prev);
+        setFavorited((prev) => !prev); // Revert
         console.error("Failed to toggle favorite", err);
       }
     });
   }
-  // -----------------------
 
   // Build booking link
   const qs = useMemo(() => {
@@ -66,10 +63,7 @@ export default function RoomCard(props: {
     return q.toString();
   }, [props.preserve, selectedDate, roomId]);
 
-  const deptName = Array.isArray(r.department)
-    ? r.department[0]?.name ?? "—"
-    : r.department?.name ?? "—";
-
+  const deptName = Array.isArray(r.department) ? r.department[0]?.name ?? "—" : r.department?.name ?? "—";
   const bufferMinutes = Number(r.buffer_minutes ?? 0);
 
   const amenities = Array.isArray(r.amenities) ? r.amenities.slice(0, 4) : [];
