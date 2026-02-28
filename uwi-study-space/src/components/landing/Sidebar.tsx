@@ -16,7 +16,7 @@ export function Sidebar() {
           <Link className="block text-gray-700 dark:text-gray-300 hover:text-primary dark:hover:text-blue-300 transition-colors group flex items-center" href="https://uwi-sta.libanswers.com/">
             <span className="material-symbols-outlined text-base mr-2 text-gray-400 group-hover:text-primary">people</span> Ask a Librarian
           </Link>
-          <Link className="block text-gray-700 dark:text-gray-300 hover:text-primary dark:hover:text-blue-300 transition-colors group flex items-center" href="/events">
+          <Link className="block text-gray-700 dark:text-gray-300 hover:text-primary dark:hover:text-blue-300 transition-colors group flex items-center" href="https://libraries.sta.uwi.edu/apps/index.php/PastPaperSearch/results">
             <span className="material-symbols-outlined text-base mr-2 text-gray-400 group-hover:text-primary">quiz</span> Past Papaer
           </Link>
           <Link className="block text-gray-700 dark:text-gray-300 hover:text-primary dark:hover:text-blue-300 transition-colors group flex items-center" href="https://libraries.sta.uwi.edu/ajl/index.php/about-the-library/opening-hours">
