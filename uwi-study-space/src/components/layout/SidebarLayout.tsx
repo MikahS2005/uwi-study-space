@@ -24,7 +24,7 @@ type NavItem = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* Icons                    */
+/* Icons                                     */
 /* -------------------------------------------------------------------------- */
 
 function IconDashboard() {
@@ -190,34 +190,26 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
     ];
 
     // Admin panel link for admin + super_admin
-// Admin panel link (role-aware routing)
-if (role === "admin") {
-  items.push({
-    href: "/admin",
-    label: "Admin Panel",
-    icon: <IconShield />,
-  });
-}
+    if (role === "admin") {
+      items.push({
+        href: "/admin",
+        label: "Admin Panel",
+        icon: <IconShield />,
+      });
+    }
 
-if (role === "super_admin") {
-  items.push({
-    href: "/super-admin",
-    label: "Admin Panel",
-    icon: <IconShield />,
-  });
-}
+    if (role === "super_admin") {
+      items.push({
+        href: "/super-admin",
+        label: "Admin Panel",
+        icon: <IconShield />,
+      });
+    }
 
-    // NOTE:
-    // Settings should be under /super-admin per your decision.
-    // If you want a separate sidebar item for it later, add:
-    // items.push({ href: "/super-admin/settings", label: "Settings", icon: <IconShield /> });
     return items;
   }, [role]);
 
   async function signOut() {
-    // If you already have a sign-out route/button elsewhere, feel free to replace.
-    // This is the simplest pattern: call Supabase signout via an API route or client.
-    // If you have a /api/auth/signout route, change this call.
     try {
       await fetch("/api/auth/signout", { method: "POST" });
     } catch {
@@ -271,8 +263,8 @@ if (role === "super_admin") {
         ].join(" ")}
         aria-label="Sidebar"
       >
-        {/* Sidebar background */}
-        <div className="flex h-full flex-col bg-sky-900">
+        {/* Sidebar background - CHANGED TO DASHBOARD BLUE */}
+        <div className="flex h-full flex-col bg-[#003595]">
           {/* Brand header */}
           <div className="flex items-start justify-between px-5 py-5">
             <div className="flex items-start gap-3">
@@ -335,13 +327,13 @@ if (role === "super_admin") {
                 </div>
                 <div className="min-w-0">
                   <div className="truncate text-sm font-semibold">{displayName}</div>
-                  <div className="truncate text-xs text-white/80">{role}</div>
+                  <div className="truncate text-xs text-white/80 uppercase tracking-wider">{role}</div>
                 </div>
               </div>
 
               <div className="mt-6">
-                    <UserBar />
-                  </div>
+                <UserBar />
+              </div>
             </div>
           </div>
         </div>
