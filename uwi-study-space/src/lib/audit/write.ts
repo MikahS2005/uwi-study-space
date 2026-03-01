@@ -1,6 +1,15 @@
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
-type AuditTargetType = "booking" | "room" | "user" | "settings";
+// ✅ Expand as the app grows (keeps audit logging type-safe)
+type AuditTargetType =
+  | "booking"
+  | "room"
+  | "user"
+  | "settings"
+  | "waitlist"
+  // New admin features
+  | "room_blackout"
+  | "room_opening_hours";
 
 export async function writeAuditLog(opts: {
   actorUserId: string;

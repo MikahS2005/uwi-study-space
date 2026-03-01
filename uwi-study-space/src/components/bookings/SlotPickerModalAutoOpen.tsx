@@ -1,13 +1,6 @@
 // src/components/bookings/SlotPickerModalAutoOpen.tsx
 "use client";
 
-/**
- * SlotPickerModalAutoOpen
- * - Used on /rooms and /schedule
- * - Opens immediately when bookingDTO exists in the URL.
- * - When user closes, remove `bookRoomId` from the URL (keep other params).
- */
-
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import SlotPicker from "@/components/bookings/SlotPicker";
@@ -17,29 +10,31 @@ type Slot = { start: string; end: string; isBooked: boolean };
 export default function SlotPickerModalAutoOpen(props: {
   dto: {
     roomId: number;
+    roomName: string; 
     date: string;
     slots: Slot[];
     slotMinutes: number;
+    bufferMinutes: number; 
     maxConsecutive: number;
     maxDurationHours: number;
   };
 }) {
   const router = useRouter();
-  const pathname = usePathname(); // ✅ important: works on /rooms AND /schedule
+  const pathname = usePathname();
   const sp = useSearchParams();
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
 
-  // Open immediately on mount (because user clicked "Book")
   useEffect(() => {
-    setOpen(true);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "unset";
+    };
   }, []);
 
-  // Build close URL: remove bookRoomId only, keep everything else
   const closeUrl = useMemo(() => {
     const next = new URLSearchParams(sp.toString());
     next.delete("bookRoomId");
-
     const qs = next.toString();
     return `${pathname}${qs ? `?${qs}` : ""}`;
   }, [sp, pathname]);
@@ -50,54 +45,59 @@ export default function SlotPickerModalAutoOpen(props: {
     router.refresh();
   }, [router, closeUrl]);
 
-  // Close on Escape key
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") close();
     }
-    if (open) window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, close]);
+  }, [close]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       {/* Backdrop */}
-      <button
-        type="button"
-        aria-label="Close booking modal"
+      <div 
         onClick={close}
-        className="absolute inset-0 cursor-default bg-black/40"
+        className="fixed inset-0 h-full w-full bg-black/60 backdrop-blur-md"
+        aria-hidden="true"
       />
 
-      {/* Panel */}
-      <div className="absolute left-1/2 top-1/2 w-[min(760px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-5 shadow-xl">
-        <div className="flex items-start justify-between gap-4">
+      {/* Modal Panel */}
+      <div className="relative z-[10000] w-full max-w-[760px] rounded-2xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+        
+        {/* Header Section */}
+        <div className="flex items-start justify-between border-b border-gray-100 pb-4 mb-4">
           <div>
-            <h2 className="text-lg font-semibold">Book this room</h2>
-            <p className="mt-1 text-sm text-neutral-600">
-              Date: <span className="font-medium">{props.dto.date}</span>
+            {/* ✅ Updated Header with Room Name */}
+            <h2 className="text-2xl font-bold text-black tracking-tight">
+              Book this room ({props.dto.roomName})
+            </h2>
+            <p className="mt-1 text-sm font-medium text-gray-800">
+              Date: <span className="font-bold text-black">{props.dto.date}</span>
             </p>
           </div>
 
           <button
             type="button"
             onClick={close}
-            className="rounded border px-3 py-1.5 text-sm hover:bg-neutral-50"
+            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-black shadow-sm hover:bg-gray-50 hover:border-gray-400"
           >
             Close
           </button>
         </div>
 
-        <div className="mt-4">
+        {/* Slot Selection Content */}
+        <div className="max-h-[65vh] overflow-y-auto pr-1">
           <SlotPicker
             roomId={props.dto.roomId}
             slots={props.dto.slots}
             slotMinutes={props.dto.slotMinutes}
-            maxConsecutive={props.dto.maxConsecutive}
-            maxDurationHours={props.dto.maxDurationHours}
-            onBooked={close} // ✅ closes after a successful booking
+            bufferMinutes={props.dto.bufferMinutes} 
+            maxConsecutiveHours={props.dto.maxConsecutive}
+            maxBookingDurationHours={props.dto.maxDurationHours}
+            onBooked={close}
           />
         </div>
       </div>

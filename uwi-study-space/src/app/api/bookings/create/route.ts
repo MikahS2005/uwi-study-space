@@ -4,6 +4,8 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { validateBookingOrThrow } from "@/lib/booking/rules";
 import { writeAuditLog } from "@/lib/audit/write";
 
+type Role = "student" | "admin" | "super_admin";
+
 /**
  * Student creates their own booking.
  * Server enforces:
@@ -12,6 +14,11 @@ import { writeAuditLog } from "@/lib/audit/write";
  * - booking rules (limits/overlaps/etc)
  * - insert via service role
  * - audit log (best effort) AFTER successful insert
+ *
+ * IMPORTANT:
+ * If the room is already booked, return 409 with:
+ *   { code: "ROOM_BOOKED", canWaitlist: true }
+ * so the UI can show "Join Waitlist".
  */
 export async function POST(req: Request) {
   const supabase = await createSupabaseServer();
@@ -36,25 +43,25 @@ export async function POST(req: Request) {
   }
 
   const me = Array.isArray(meRows) ? meRows[0] : null;
-  const role = me?.role ?? null;
+  const role = (me?.role ?? null) as Role | null;
 
   // Only students use this route (admins use /api/admin/create-booking)
   if (role !== "student") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // 3) Parse payload
-  const body = await req.json();
-  const roomId = Number(body.roomId);
-  const start = String(body.start);
-  const end = String(body.end);
-  const purpose = String(body.purpose ?? "");
+  // 3) Parse payload (be defensive)
+  const body = await req.json().catch(() => null);
+  const roomId = Number(body?.roomId);
+  const start = String(body?.start ?? "");
+  const end = String(body?.end ?? "");
+  const purpose = String(body?.purpose ?? "").trim();
 
   if (!Number.isFinite(roomId) || !start || !end) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  // 4) Enforce rules (overlaps, max/day, 7-days, 3-consecutive, etc.)
+  // 4) Enforce rules (overlaps, max/day, max days ahead, slot mins, etc.)
   const validation = await validateBookingOrThrow({
     roomId,
     startISO: start,
@@ -64,7 +71,31 @@ export async function POST(req: Request) {
   });
 
   if (!validation.ok) {
-    return NextResponse.json({ error: validation.message }, { status: 400 });
+    const msg = validation.message ?? "Booking not allowed.";
+
+    // If the failure is specifically "already booked", signal waitlist option.
+    // We match a couple likely phrasings; keep the canonical message in rules.ts.
+    const m = msg.toLowerCase();
+    const isBookedConflict =
+      m.includes("already booked") ||
+      m.includes("overlap") ||
+      m.includes("conflict") ||
+      m.includes("booked for this time");
+
+    if (isBookedConflict) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: "ROOM_BOOKED",
+          message: msg,
+          canWaitlist: true,
+        },
+        { status: 409 },
+      );
+    }
+
+    // All other rule failures are a normal 400
+    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 
   // 5) Insert with service role
@@ -84,6 +115,8 @@ export async function POST(req: Request) {
     .single();
 
   if (insertErr || !inserted) {
+    // If DB unique constraint / overlap protection exists, you can map that to 409 too,
+    // but keeping it simple for now.
     return NextResponse.json(
       { error: "Insert failed", detail: insertErr?.message },
       { status: 400 },

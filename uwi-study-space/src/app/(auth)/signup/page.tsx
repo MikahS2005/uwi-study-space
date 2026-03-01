@@ -16,6 +16,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [uwiId, setUwiId] = useState(""); // ✅ NEW
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,13 +30,23 @@ export default function SignupPage() {
       return;
     }
 
+    // ✅ If you want UWI ID required for students:
+    const isStudent = normalizedEmail.endsWith("@my.uwi.edu");
+    if (isStudent && !uwiId.trim()) {
+      setError("Student ID is required for @my.uwi.edu accounts.");
+      return;
+    }
+
     setLoading(true);
 
     const { data, error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
       options: {
-        data: { full_name: fullName.trim() }, // stored in auth metadata
+        data: {
+          full_name: fullName.trim(),
+          uwi_id: uwiId.trim() || null, // ✅ send to auth metadata
+        },
         emailRedirectTo: `${window.location.origin}/verify`,
       },
     });
@@ -47,14 +58,8 @@ export default function SignupPage() {
       return;
     }
 
-    // Supabase may require email confirmation depending on settings
-    if (data.user && data.user.identities?.length) {
-      router.push("/verify");
-      router.refresh();
-    } else {
-      router.push("/verify");
-      router.refresh();
-    }
+    router.push("/verify");
+    router.refresh();
   }
 
   return (
@@ -69,7 +74,18 @@ export default function SignupPage() {
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           autoComplete="name"
+          required
         />
+
+        {/* ✅ NEW */}
+        <input
+          className="w-full rounded border px-3 py-2"
+          placeholder="Student ID (e.g. 8160xxxx)"
+          value={uwiId}
+          onChange={(e) => setUwiId(e.target.value)}
+          autoComplete="off"
+        />
+
         <input
           className="w-full rounded border px-3 py-2"
           placeholder="email@my.uwi.edu"
@@ -78,6 +94,7 @@ export default function SignupPage() {
           autoComplete="email"
           required
         />
+
         <input
           className="w-full rounded border px-3 py-2"
           placeholder="Password (min 6 chars)"

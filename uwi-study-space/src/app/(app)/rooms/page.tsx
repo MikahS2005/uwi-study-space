@@ -1,33 +1,93 @@
 // src/app/(app)/rooms/page.tsx
-import Link from "next/link";
-import RoomFilters from "@/components/rooms/Filters";
-import { getBookedRoomIdsBetween, getRoomsFiltered } from "@/lib/db/queries";
+//
+// Browse Rooms page
+// - Shows filtered rooms
+// - Opens booking modal via ?bookRoomId=ID&date=YYYY-MM-DD
+// - Computes room “badges” server-side (Closed / Temporarily closed / Open now)
+//   using opening hours + blackouts for the SELECTED date (Trinidad time).
+//
+// IMPORTANT TIME NOTES
+// - Trinidad is fixed UTC-4 (no DST), so "-04:00" is safe.
+// - We compute day-of-week for the selected date in Trinidad time.
+// - “Open now / Closed now” only appears when selectedDate === today in Trinidad time.
 
-import { getSettings } from "@/lib/db/bookings";
-import { getRoomById, getActiveBookingsForRoomBetween } from "@/lib/db/rooms";
-import { buildSlotsForDay, startOfDay, endOfDay } from "@/lib/booking/time";
-import SlotPickerModalAutoOpen from "@/components/bookings/SlotPickerModalAutoOpen";
+import RoomFilters from "@/components/rooms/Filters";
 import RoomCard from "@/components/rooms/RoomCard";
 import RoomsDatePicker from "@/components/rooms/RoomsDatePicker";
+import SlotPickerModalAutoOpen from "@/components/bookings/SlotPickerModalAutoOpen";
 
+import { getRoomsFiltered } from "@/lib/db/queries";
+import { getSettings } from "@/lib/db/bookings";
+import { getRoomById } from "@/lib/db/rooms";
+import { getRoomAvailabilityForDate } from "@/lib/db/availability";
+import { createSupabaseServer } from "@/lib/supabase/server";
 
+// -----------------------------
+// Trinidad time helpers (UTC-4)
+// -----------------------------
+const TT_OFFSET = "-04:00";
+
+function getTtYMDNow() {
+  // Returns YYYY-MM-DD in Trinidad time
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Port_of_Spain",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const yyyy = parts.find((p) => p.type === "year")?.value ?? "1970";
+  const mm = parts.find((p) => p.type === "month")?.value ?? "01";
+  const dd = parts.find((p) => p.type === "day")?.value ?? "01";
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function getTtMinutesNow() {
+  // Minutes since midnight in Trinidad time
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Port_of_Spain",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+
+  const hh = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const mm = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return hh * 60 + mm;
+}
+
+function minutesToLabel(mins: number) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
 
 /**
- * Build ISO for today bounds (server-side).
- * Used for "booked today" indicator only.
+ * Day-of-week for a Trinidad-local date.
+ * Use noon to avoid edge cases.
+ * Returns 0=Sun..6=Sat
  */
-function startOfTodayISO() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
+function dowForTtDate(ymd: string) {
+  const d = new Date(`${ymd}T12:00:00${TT_OFFSET}`);
+  // Using getUTCDay here is fine because the Date was constructed with -04:00.
+  return d.getUTCDay();
 }
 
-function endOfTodayISO() {
-  const d = new Date();
-  d.setHours(23, 59, 59, 999);
-  return d.toISOString();
+/**
+ * Campus-local day bounds, returned as UTC ISO strings for DB overlap filters.
+ */
+function ttDayBoundsUtcISO(ymd: string) {
+  const startLocal = new Date(`${ymd}T00:00:00${TT_OFFSET}`);
+  const endLocal = new Date(`${ymd}T23:59:59.999${TT_OFFSET}`);
+  return {
+    dayStartUtcISO: startLocal.toISOString(),
+    dayEndUtcISO: endLocal.toISOString(),
+  };
 }
 
+// -----------------------------
+// Page helpers
+// -----------------------------
 function todayISODate() {
   const d = new Date();
   const yyyy = d.getFullYear();
@@ -36,16 +96,23 @@ function todayISODate() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+type RoomCardStatus = {
+  isClosed: boolean; // closed day for selected date
+  blackoutReason: string | null; // temporary closure reason if any blackout overlaps selected date
+  openLabel: string; // "08:00–20:00"
+  openNow: boolean | null; // only for todayTT; null otherwise
+};
+
 export default async function RoomsPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const searchParams = await props.searchParams;
-  // Settings used to constrain the date picker (booking window)
+
+  // Settings used by date picker + modal constraints
   const settingsForPicker = await getSettings();
 
-
   // ---------------------------
-  // 1) Filters (existing)
+  // 1) Filters
   // ---------------------------
   const building = typeof searchParams.building === "string" ? searchParams.building : undefined;
   const amenity = typeof searchParams.amenity === "string" ? searchParams.amenity : undefined;
@@ -60,12 +127,9 @@ export default async function RoomsPage(props: {
     minCapacity: Number.isFinite(minCapacityNum) ? minCapacityNum : undefined,
   });
 
-  
-
   // ---------------------------
-  // 2) Booking modal query params
+  // 2) Modal query params
   // ---------------------------
-  // Example: /rooms?bookRoomId=12&date=2026-02-16
   const bookRoomIdRaw =
     typeof searchParams.bookRoomId === "string" ? searchParams.bookRoomId : undefined;
   const bookRoomId = bookRoomIdRaw && /^\d+$/.test(bookRoomIdRaw) ? Number(bookRoomIdRaw) : null;
@@ -76,96 +140,170 @@ export default async function RoomsPage(props: {
       : todayISODate();
 
   // ---------------------------
-  // 3) If a room is selected for booking, load slots for that room+date
-  //    (Only for the selected room; do NOT do this for every room in the list.)
+  // 3) Booking modal DTO (for selected room only)
   // ---------------------------
   let bookingDTO:
     | null
     | {
         roomId: number;
+        roomName: string;
         date: string;
         slots: { start: string; end: string; isBooked: boolean }[];
         slotMinutes: number;
+        bufferMinutes: number;
         maxConsecutive: number;
         maxDurationHours: number;
       } = null;
 
   if (bookRoomId) {
-    const settings = await getSettings();
-
-    // Ensure room exists
     const room = await getRoomById(bookRoomId);
     if (room) {
-      const dayStart = startOfDay(selectedDate);
-      const dayEnd = endOfDay(selectedDate);
+      const avail = await getRoomAvailabilityForDate(bookRoomId, selectedDate);
 
-      if (dayStart && dayEnd) {
-        const bookings = await getActiveBookingsForRoomBetween(
-          bookRoomId,
-          dayStart.toISOString(),
-          dayEnd.toISOString(),
-        );
-
-        // For now keep hours hardcoded; later can be a settings/table value.
-        const openHour = 8;
-        const closeHour = 21;
-
-        const slots = buildSlotsForDay(selectedDate, settings.slot_minutes, openHour, closeHour).map(
-          (s) => {
-            const isBooked = bookings.some(
-              (b) =>
-                new Date(b.start_time) < new Date(s.end) &&
-                new Date(b.end_time) > new Date(s.start),
-            );
-            return { ...s, isBooked };
-          },
-        );
-
-        bookingDTO = {
-          roomId: bookRoomId,
-          date: selectedDate,
-          slots,
-          slotMinutes: settings.slot_minutes,
-          maxConsecutive: settings.max_consecutive_hours,
-          maxDurationHours: settings.max_booking_duration_hours,
-        };
-      }
+      bookingDTO = {
+        roomId: bookRoomId,
+        roomName: room.name,
+        date: selectedDate,
+        slots: avail.slots,
+        slotMinutes: avail.slotMinutes,
+        bufferMinutes: avail.bufferMinutes,
+        maxConsecutive: avail.maxConsecutiveHours,
+        maxDurationHours: avail.maxBookingDurationHours,
+      };
     }
   }
 
-return (
-    <div>
-      <h1 className="text-2xl font-semibold">Browse Rooms</h1>
-      <p className="mt-1 text-sm text-gray-600">
-        Filter rooms and click <b>Book</b> to reserve time.
-      </p>
-      
-      <RoomsDatePicker maxDaysAhead={settingsForPicker.max_booking_window_days} />
+  // ---------------------------
+  // 4) Compute card status for visible rooms (opening hours + blackouts)
+  //    - Uses Trinidad-local day for selectedDate
+  // ---------------------------
+  const supabase = await createSupabaseServer();
 
+  const roomIds = rooms.map((r: any) => Number(r.id)).filter((x) => Number.isFinite(x));
+  const todayTT = getTtYMDNow();
+  const nowMinTT = getTtMinutesNow();
 
-      {/* Filters (client component) */}
+  const dow = dowForTtDate(selectedDate);
+  const { dayStartUtcISO, dayEndUtcISO } = ttDayBoundsUtcISO(selectedDate);
+
+  // If no rooms, avoid .in([]) issues
+  const hoursRows =
+    roomIds.length === 0
+      ? []
+      : (
+          await supabase
+            .from("room_opening_hours")
+            .select("room_id, open_minute, close_minute, is_closed")
+            .in("room_id", roomIds)
+            .eq("day_of_week", dow)
+        ).data ?? [];
+
+  const blackouts =
+    roomIds.length === 0
+      ? []
+      : (
+          await supabase
+            .from("room_blackouts")
+            .select("room_id, reason, start_time, end_time")
+            .in("room_id", roomIds)
+            .lt("start_time", dayEndUtcISO)
+            .gt("end_time", dayStartUtcISO)
+        ).data ?? [];
+
+  // Build maps for fast lookup
+  const hoursMap = new Map<number, { open_minute: number; close_minute: number; is_closed: boolean }>();
+  for (const h of hoursRows as any[]) {
+    hoursMap.set(Number(h.room_id), {
+      open_minute: Number(h.open_minute ?? 480),
+      close_minute: Number(h.close_minute ?? 1200),
+      is_closed: Boolean(h.is_closed ?? false),
+    });
+  }
+
+  const blackoutMap = new Map<number, string>();
+  for (const b of blackouts as any[]) {
+    const rid = Number(b.room_id);
+    if (!blackoutMap.has(rid)) {
+      blackoutMap.set(rid, String(b.reason ?? "Temporarily unavailable"));
+    }
+  }
+
+  function computeStatus(roomId: number): RoomCardStatus {
+    const hrs = hoursMap.get(roomId);
+
+    // If we cannot see an opening-hours row (RLS or missing seed),
+    // treat as closed (safer) and show a placeholder label.
+    const isClosedDay = hrs ? Boolean(hrs.is_closed) : true;
+    const openMin = hrs ? Number(hrs.open_minute) : 0;
+    const closeMin = hrs ? Number(hrs.close_minute) : 0;
+
+    const blackoutReason = blackoutMap.get(roomId) ?? null;
+
+    const openLabel =
+      hrs && closeMin > openMin ? `${minutesToLabel(openMin)}–${minutesToLabel(closeMin)}` : "—";
+
+    const isToday = selectedDate === todayTT;
+
+    // “Closed” badge: only closed-day for selected date
+    const isClosed = isClosedDay;
+
+    // “Open now / Closed now”: only for today
+    const outsideHoursNow = isToday && hrs ? nowMinTT < openMin || nowMinTT >= closeMin : false;
+
+    const openNow =
+      isToday && hrs
+        ? !isClosedDay && !outsideHoursNow && blackoutReason == null
+        : null;
+
+    return {
+      isClosed,
+      blackoutReason,
+      openLabel,
+      openNow,
+    };
+  }
+
+  // ---------------------------
+  // Render
+  // ---------------------------
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold text-black tracking-tight">Browse Rooms</h1>
+        <p className="mt-2 text-sm font-medium text-gray-800">
+          Filter rooms and click <b className="text-black">Book Room</b> to reserve time.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="mt-3 text-xs font-medium text-gray-500">
+          <RoomsDatePicker maxDaysAhead={settingsForPicker.max_booking_window_days} />
+        </div>
+      </div>
+
       <RoomFilters />
 
       {/* Booking modal auto-opens when bookRoomId exists */}
       {bookingDTO ? <SlotPickerModalAutoOpen dto={bookingDTO} /> : null}
 
-
-      {/* Rooms grid */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {rooms.map((r) => (
-          <RoomCard
-            key={String(r.id)}
-            room={r as any}
-            preserve={{
-              building: building?.trim() || undefined,
-              amenity: amenity?.trim() || undefined,
-              minCapacityRaw: minCapacityRaw,
-              date: selectedDate,
-            }}
-          />
-        ))}
+      <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {rooms.map((r: any) => {
+          const rid = Number(r.id);
+          return (
+            <RoomCard
+              key={String(r.id)}
+              room={r}
+              preserve={{
+                building: building?.trim() || undefined,
+                amenity: amenity?.trim() || undefined,
+                minCapacityRaw,
+                date: selectedDate,
+              }}
+              status={Number.isFinite(rid) ? computeStatus(rid) : undefined}
+            />
+          );
+        })}
       </div>
-      </div>
-
+    </div>
   );
 }

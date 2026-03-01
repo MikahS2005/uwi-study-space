@@ -74,12 +74,12 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
   const tabs = useMemo(() => {
     // Super admins get the full admin panel tabs + Settings.
     return [
-      { href: "/admin/rooms", label: "Rooms" },
-      { href: "/admin/bookings", label: "Bookings" },
+      { href: "/super-admin/rooms", label: "Rooms" },
+      { href: "/super-admin/bookings", label: "Bookings" },
       { href: "/super-admin/departments", label: "Departments" },
       { href: "/super-admin/users", label: "Users" },
-      { href: "/admin/waitlist", label: "Waitlist" },
-      { href: "/admin/reports", label: "Reports" },
+      { href: "/super-admin/waitlist", label: "Waitlist" },
+      { href: "/super-admin/reports", label: "Reports" },
       { href: "/super-admin/settings", label: "Settings" },
     ];
   }, []);

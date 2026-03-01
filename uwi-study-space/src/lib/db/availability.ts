@@ -1,141 +1,216 @@
 // src/lib/db/availability.ts
-// Room availability query + slot generation.
-// This is used by:
-// - Room booking modal
-// - Schedule (later, we can reuse the same logic)
-// - Room cards "x/y slots left" (later)
-
 import "server-only";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { getSettings } from "@/lib/db/bookings";
 
-/**
- * Basic Slot shape expected by SlotPicker.
- */
-export type Slot = {
-  start: string; // ISO
-  end: string; // ISO
-  isBooked: boolean;
-};
+export type Slot = { start: string; end: string; isBooked: boolean };
 
 export type RoomAvailabilityDTO = {
   roomId: number;
-  date: string; // YYYY-MM-DD (UTC day)
+  date: string; // YYYY-MM-DD (campus local day)
   slotMinutes: number;
+  bufferMinutes: number; 
   maxConsecutiveHours: number;
   maxBookingDurationHours: number;
   slots: Slot[];
 };
 
-/**
- * Build UTC day bounds for a YYYY-MM-DD date string.
- * NOTE: This treats "day" as UTC. If you later want Port of Spain local time,
- * we can refactor to timezone-based bounds.
- */
-function utcBoundsFromYMD(ymd: string) {
-  // ymd like "2026-02-16"
-  const [Y, M, D] = ymd.split("-").map((x) => Number(x));
-  const start = new Date(Date.UTC(Y, M - 1, D, 0, 0, 0));
-  const end = new Date(Date.UTC(Y, M - 1, D + 1, 0, 0, 0));
-  return { start, end };
+// Trinidad has no DST → fixed offset is safe.
+const CAMPUS_TZ_OFFSET = "-04:00";
+
+// ---------- time helpers (local campus day) ----------
+function minutesToHHMM(mins: number) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 /**
- * Generate slot start/end ISO strings for the day using slotMinutes.
- * Example (slotMinutes=60): 08:00-09:00 etc.
- *
- * IMPORTANT:
- * Your screenshots show 12 slots/day (8AM–8PM). That's a UI decision.
- * Here we implement a DEFAULT 8:00–20:00 UTC schedule.
- * If AJL uses a different schedule (e.g. 8–10, weekends shorter),
- * we will switch this to read from a "hours" table later.
+ * Build an ISO string interpreted as campus local time.
+ * Example: 2026-02-20 + 480 => "2026-02-20T08:00:00-04:00"
  */
-function generateDailySlots(params: {
-  dayStart: Date;
+function campusISOFromDayAndMinute(ymd: string, minute: number) {
+  // minute can be 0..1440 (we mostly stay <= 1439 for slot starts)
+  const hhmm = minutesToHHMM(Math.min(minute, 1439));
+  return `${ymd}T${hhmm}:00${CAMPUS_TZ_OFFSET}`;
+}
+
+/**
+ * Campus-local day boundaries converted to UTC ISO strings for DB queries.
+ * This is KEY: we query DB in UTC, but define the window using campus-local day.
+ */
+function campusDayBoundsUtcISO(ymd: string) {
+  const startLocal = new Date(`${ymd}T00:00:00${CAMPUS_TZ_OFFSET}`);
+  const endLocal = new Date(`${ymd}T23:59:59.999${CAMPUS_TZ_OFFSET}`);
+  return {
+    dayStartUtcISO: startLocal.toISOString(),
+    dayEndUtcISO: endLocal.toISOString(),
+    // For day-of-week row selection (0=Sun..6=Sat) in campus local time:
+    dowLocal: startLocal.getDay(),
+  };
+}
+
+function overlapsMs(aStart: number, aEnd: number, bStart: number, bEnd: number) {
+  // [aStart,aEnd) overlaps [bStart,bEnd)
+  return aStart < bEnd && aEnd > bStart;
+}
+
+/**
+ * Generate slot start/end ISO strings (campus local) inside open/close minutes.
+ */
+function generateSlotsByMinutes(params: {
+  ymd: string;
   slotMinutes: number;
-  openHourUtc: number; // default 8
-  closeHourUtc: number; // default 20
-}): Array<{ start: Date; end: Date }> {
-  const { dayStart, slotMinutes, openHourUtc, closeHourUtc } = params;
+  openMinute: number; // 0..1439
+  closeMinute: number; // 1..1440
+}) {
+  const { ymd, slotMinutes, openMinute, closeMinute } = params;
 
-  const open = new Date(dayStart);
-  open.setUTCHours(openHourUtc, 0, 0, 0);
+  const slots: Array<{ startISO: string; endISO: string; startMs: number; endMs: number }> = [];
 
-  const close = new Date(dayStart);
-  close.setUTCHours(closeHourUtc, 0, 0, 0);
+  let cursorMin = openMinute;
 
-  const slots: Array<{ start: Date; end: Date }> = [];
+  while (cursorMin + slotMinutes <= closeMinute) {
+    const startISO = campusISOFromDayAndMinute(ymd, cursorMin);
 
-  let cursor = new Date(open);
-  while (cursor < close) {
-    const next = new Date(cursor.getTime() + slotMinutes * 60 * 1000);
-    if (next > close) break;
+    // End minute could theoretically equal 1440 (00:00 next day). We keep it simple:
+    // if it hits 1440, represent it as 23:59 for display, but MS comparison still works
+    // because your slotMinutes is 60 and your closeMinute usually <= 1439 anyway.
+    const endISO = campusISOFromDayAndMinute(ymd, cursorMin + slotMinutes);
 
-    slots.push({ start: new Date(cursor), end: next });
-    cursor = next;
+    const startMs = Date.parse(startISO);
+    const endMs = Date.parse(endISO);
+
+    slots.push({ startISO, endISO, startMs, endMs });
+    cursorMin += slotMinutes;
   }
 
   return slots;
 }
 
-/**
- * Fetch bookings for a room on a day and mark which generated slots are booked.
- * We only treat status='active' as blocking a slot.
- */
 export async function getRoomAvailabilityForDate(
   roomId: number,
   ymd: string,
 ): Promise<RoomAvailabilityDTO> {
   const supabase = await createSupabaseServer();
-
-  // Settings drive slot size + max consecutive etc.
   const settings = await getSettings();
 
-  const { start: dayStart, end: dayEnd } = utcBoundsFromYMD(ymd);
+  // 1) Room status + buffer
+  const { data: room, error: roomErr } = await supabase
+    .from("rooms")
+    .select("id, is_active, buffer_minutes")
+    .eq("id", roomId)
+    .maybeSingle();
 
-  // Get bookings for this room that overlap the day (active only).
-  // We include any booking that might block a slot during the day.
-  const { data: booked, error } = await supabase
+  if (roomErr) throw roomErr;
+
+  // If room missing / inactive, still return a valid DTO shape
+  if (!room || room.is_active === false) {
+    return {
+      roomId,
+      date: ymd,
+      slotMinutes: settings.slot_minutes,
+      bufferMinutes: 0, // ✅ required
+      maxConsecutiveHours: settings.max_consecutive_hours,
+      maxBookingDurationHours: settings.max_booking_duration_hours,
+      slots: [],
+    };
+  }
+
+  const buffer = Number(room.buffer_minutes ?? 0);
+
+  // 2) Campus-local day bounds (converted to UTC for DB filters) + local DOW
+  const { dayStartUtcISO, dayEndUtcISO, dowLocal } = campusDayBoundsUtcISO(ymd);
+
+  // 3) Opening hours row for that LOCAL day
+  const { data: hoursRow, error: hrsErr } = await supabase
+    .from("room_opening_hours")
+    .select("open_minute, close_minute, is_closed")
+    .eq("room_id", roomId)
+    .eq("day_of_week", dowLocal)
+    .maybeSingle();
+
+  if (hrsErr) throw hrsErr;
+
+  const openMinute = Number(hoursRow?.open_minute ?? 480);
+  const closeMinute = Number(hoursRow?.close_minute ?? 1200);
+  const isClosed = Boolean(hoursRow?.is_closed ?? false);
+
+  if (isClosed) {
+    return {
+      roomId,
+      date: ymd,
+      slotMinutes: settings.slot_minutes,
+      bufferMinutes: buffer, // ✅ required
+      maxConsecutiveHours: settings.max_consecutive_hours,
+      maxBookingDurationHours: settings.max_booking_duration_hours,
+      slots: [],
+    };
+  }
+
+  // 4) Pull active bookings overlapping the campus-local day window (using UTC timestamps)
+  const { data: booked, error: bookedErr } = await supabase
     .from("bookings")
     .select("start_time, end_time")
     .eq("room_id", roomId)
     .eq("status", "active")
-    // overlap day window: start < dayEnd AND end > dayStart
-    .lt("start_time", dayEnd.toISOString())
-    .gt("end_time", dayStart.toISOString());
+    .lt("start_time", dayEndUtcISO)
+    .gt("end_time", dayStartUtcISO);
 
-  if (error) throw error;
+  if (bookedErr) throw bookedErr;
 
-  // Build generated slots for the day.
-  // Default hours: 08:00–20:00 UTC => 12 x 60-min slots.
-  const generated = generateDailySlots({
-    dayStart,
+  // 5) Pull blackouts overlapping campus-local day window
+  const { data: blackouts, error: blkErr } = await supabase
+    .from("room_blackouts")
+    .select("start_time, end_time")
+    .eq("room_id", roomId)
+    .lt("start_time", dayEndUtcISO)
+    .gt("end_time", dayStartUtcISO);
+
+  if (blkErr) throw blkErr;
+
+  // 6) Generate slots (campus-local ISO strings) inside opening window
+  const generated = generateSlotsByMinutes({
+    ymd,
     slotMinutes: settings.slot_minutes,
-    openHourUtc: 8,
-    closeHourUtc: 20,
+    openMinute,
+    closeMinute,
   });
 
-  // Determine if a generated slot is blocked by any booking overlap.
-  // slot is booked if booking.start < slot.end AND booking.end > slot.start
-  function slotIsBooked(slotStart: Date, slotEnd: Date) {
+  // 7) Block slots if overlap booking or blackout (with buffer)
+  function slotIsBlocked(slotStartMs: number, slotEndMs: number) {
+    const slotStartBuf = slotStartMs - buffer * 60_000;
+    const slotEndBuf = slotEndMs + buffer * 60_000;
+
     for (const b of booked ?? []) {
-      const bStart = Date.parse(b.start_time);
-      const bEnd = Date.parse(b.end_time);
-      if (bStart < slotEnd.getTime() && bEnd > slotStart.getTime()) return true;
+      const b0 = Date.parse(b.start_time);
+      const b1 = Date.parse(b.end_time);
+      const b0Buf = b0 - buffer * 60_000;
+      const b1Buf = b1 + buffer * 60_000;
+
+      if (overlapsMs(slotStartBuf, slotEndBuf, b0Buf, b1Buf)) return true;
     }
+
+    for (const blk of blackouts ?? []) {
+      const x0 = Date.parse(blk.start_time);
+      const x1 = Date.parse(blk.end_time);
+      if (overlapsMs(slotStartMs, slotEndMs, x0, x1)) return true;
+    }
+
     return false;
   }
 
-  const slots: Slot[] = generated.map(({ start, end }) => ({
-    start: start.toISOString(),
-    end: end.toISOString(),
-    isBooked: slotIsBooked(start, end),
+  const slots: Slot[] = generated.map((s) => ({
+    start: s.startISO,
+    end: s.endISO,
+    isBooked: slotIsBlocked(s.startMs, s.endMs),
   }));
 
   return {
     roomId,
     date: ymd,
     slotMinutes: settings.slot_minutes,
+    bufferMinutes: buffer, // ✅ FIXED (was `number;`)
     maxConsecutiveHours: settings.max_consecutive_hours,
     maxBookingDurationHours: settings.max_booking_duration_hours,
     slots,
