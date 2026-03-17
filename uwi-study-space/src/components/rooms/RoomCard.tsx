@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { toggleFavoriteAction } from "@/lib/actions/favourites"; 
-
 const DEFAULT_IMAGE = "/ajl_normal.jpg";
 
 type Tone = "primary" | "amber" | "green" | "red";
