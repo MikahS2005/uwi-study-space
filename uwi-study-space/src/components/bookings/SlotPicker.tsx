@@ -293,41 +293,41 @@ export default function SlotPicker({
     }
   }
 
-  async function joinWaitlist() {
-    if (!bookingRange) return;
+async function joinWaitlist() {
+  if (!bookingRange) return;
 
-    setSubmitting(true);
-    setErrorMsg(null);
+  setSubmitting(true);
+  setErrorMsg(null);
 
-    try {
-      const res = await fetch("/api/waitlist/join", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          roomId,
-          start: bookingRange.start,
-          end: bookingRange.end,
-        }),
-      });
+  try {
+    const res = await fetch("/api/waitlist/join", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roomId,
+        startISO: bookingRange.start,
+        endISO: bookingRange.end,
+      }),
+    });
 
-      const data = (await res.json().catch(() => null)) as any;
+    const data = (await res.json().catch(() => null)) as any;
 
-      if (!res.ok) {
-        setErrorMsg(data?.error ?? "Failed to join waitlist");
-        setSubmitting(false);
-        return;
-      }
-
-      setWaitlistJoined(true);
-      setShowWaitlistCta(false);
+    if (!res.ok) {
+      setErrorMsg(data?.error ?? "Failed to join waitlist");
       setSubmitting(false);
-      setSuccessMsg("Joined waitlist. Watch your offers for an expiry timer.");
-      router.refresh();
-    } catch {
-      setErrorMsg("Network error. Please try again.");
-      setSubmitting(false);
+      return;
     }
+
+    setWaitlistJoined(true);
+    setShowWaitlistCta(false);
+    setSubmitting(false);
+    setSuccessMsg("Joined waitlist. Watch your offers for an expiry timer.");
+    router.refresh();
+  } catch {
+    setErrorMsg("Network error. Please try again.");
+    setSubmitting(false);
   }
+}
 
   function isInSelectedRange(s: Slot) {
     return selectedSlots.some((x) => x.start === s.start);

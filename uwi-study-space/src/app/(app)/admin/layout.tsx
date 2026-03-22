@@ -16,7 +16,7 @@ type MeResponse = {
   user: null | {
     id: string;
     email: string | null;
-    role: "student" | "admin" | "super_admin" | null;
+    role: "student"| "staff" | "admin" | "super_admin" | null;
     departmentId: number | null;
   };
 };

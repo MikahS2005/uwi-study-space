@@ -3,17 +3,20 @@ import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { writeAuditLog } from "@/lib/audit/write";
+import { getPositiveRouteId, invalidIdResponse } from "@/lib/api/routeParams";
 
-/**
- * POST /api/admin/bookings/:id/no-show
- *
- * Mirrors your existing /api/admin/mark-no-show but REST-ful.
- */
-export async function POST(_req: Request, ctx: { params: { id: string } }) {
+export async function POST(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const bookingId = await getPositiveRouteId(params);
+  if (bookingId === null) {
+    return invalidIdResponse("booking id");
+  }
+
   const supabase = await createSupabaseServer();
   const admin = createSupabaseAdmin();
 
-  // 1) Auth
   const {
     data: { user },
     error: authError,
@@ -23,7 +26,6 @@ export async function POST(_req: Request, ctx: { params: { id: string } }) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 2) Role
   const { data: meRows, error: meError } = await supabase.rpc("get_my_profile");
   if (meError) {
     return NextResponse.json(
@@ -39,13 +41,6 @@ export async function POST(_req: Request, ctx: { params: { id: string } }) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // 3) Parse booking id
-  const bookingId = Number(ctx.params.id);
-  if (!Number.isFinite(bookingId) || bookingId <= 0) {
-    return NextResponse.json({ error: "Invalid booking id" }, { status: 400 });
-  }
-
-  // 4) Read booking
   const { data: booking, error: bookingErr } = await admin
     .from("bookings")
     .select("id, status, room_id, booked_for_user_id, start_time, end_time")
@@ -57,10 +52,12 @@ export async function POST(_req: Request, ctx: { params: { id: string } }) {
   }
 
   if (booking.status !== "active") {
-    return NextResponse.json({ error: "Only active bookings can be marked no-show" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Only active bookings can be marked no-show" },
+      { status: 400 }
+    );
   }
 
-  // Prevent marking FUTURE bookings as no-show
   if (new Date(booking.start_time) > new Date()) {
     return NextResponse.json(
       { error: "Cannot mark a booking as no-show before it starts" },
@@ -68,7 +65,6 @@ export async function POST(_req: Request, ctx: { params: { id: string } }) {
     );
   }
 
-  // 5) Scope check for admins
   if (role !== "super_admin") {
     const { data: canAccess, error: accessErr } = await supabase.rpc("admin_has_room_access", {
       target_room_id: booking.room_id,
@@ -86,7 +82,6 @@ export async function POST(_req: Request, ctx: { params: { id: string } }) {
     }
   }
 
-  // 6) Update
   const { error: updErr } = await admin
     .from("bookings")
     .update({ status: "no_show" })
@@ -94,10 +89,12 @@ export async function POST(_req: Request, ctx: { params: { id: string } }) {
     .eq("status", "active");
 
   if (updErr) {
-    return NextResponse.json({ error: "Update failed", detail: updErr.message }, { status: 400 });
+    return NextResponse.json(
+      { error: "Update failed", detail: updErr.message },
+      { status: 400 }
+    );
   }
 
-  // 7) Audit
   writeAuditLog({
     actorUserId: user.id,
     action: "admin.booking.no_show",

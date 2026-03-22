@@ -3,24 +3,22 @@ import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { writeAuditLog } from "@/lib/audit/write";
+import { getPositiveRouteId, invalidIdResponse } from "@/lib/api/routeParams";
+import { sendBookingCancellation } from "@/lib/email/sendBookingCancellation";
+import { formatTtDateTimeLabel } from "@/lib/email/bookingEmailHelpers";
 
-/**
- * POST /api/admin/bookings/:id/cancel
- * Body: { reason?: string }
- *
- * Enforces:
- * - auth
- * - role admin/super_admin
- * - scope check for admin (admin_has_room_access)
- * - only active bookings can be cancelled
- * - update with service role
- * - audit log (best effort)
- */
-export async function POST(req: Request, ctx: { params: { id: string } }) {
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const bookingId = await getPositiveRouteId(params);
+  if (bookingId === null) {
+    return invalidIdResponse("booking id");
+  }
+
   const supabase = await createSupabaseServer();
   const admin = createSupabaseAdmin();
 
-  // 1) Auth
   const {
     data: { user },
     error: authError,
@@ -30,7 +28,6 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 2) Role
   const { data: meRows, error: meError } = await supabase.rpc("get_my_profile");
   if (meError) {
     return NextResponse.json(
@@ -46,17 +43,9 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // 3) Parse booking id
-  const bookingId = Number(ctx.params.id);
-  if (!Number.isFinite(bookingId) || bookingId <= 0) {
-    return NextResponse.json({ error: "Invalid booking id" }, { status: 400 });
-  }
-
-  // 4) Parse body
   const body = await req.json().catch(() => ({}));
   const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
 
-  // 5) Read booking with service role
   const { data: booking, error: bookingErr } = await admin
     .from("bookings")
     .select("id, status, room_id, booked_for_user_id, start_time, end_time, created_by")
@@ -68,10 +57,12 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
   }
 
   if (booking.status !== "active") {
-    return NextResponse.json({ error: "Only active bookings can be cancelled" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Only active bookings can be cancelled" },
+      { status: 400 }
+    );
   }
 
-  // 6) Scope check for admins
   if (role !== "super_admin") {
     const { data: canAccess, error: accessErr } = await supabase.rpc("admin_has_room_access", {
       target_room_id: booking.room_id,
@@ -89,7 +80,6 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
     }
   }
 
-  // 7) Cancel booking
   const { error: updErr } = await admin
     .from("bookings")
     .update({ status: "cancelled" })
@@ -100,7 +90,6 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
     return NextResponse.json({ error: "Cancel failed", detail: updErr.message }, { status: 400 });
   }
 
-  // 8) Audit (best effort)
   writeAuditLog({
     actorUserId: user.id,
     action: "admin.booking.cancel",
@@ -115,6 +104,47 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
       reason: reason || undefined,
     },
   }).catch(() => {});
+
+  try {
+    const [profileRes, roomRes] = await Promise.all([
+      admin
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", booking.booked_for_user_id)
+        .maybeSingle(),
+      admin
+        .from("rooms")
+        .select("name, building")
+        .eq("id", booking.room_id)
+        .maybeSingle(),
+    ]);
+
+    const profile = profileRes.data;
+    const room = roomRes.data;
+
+    console.log("[admin.booking.cancel] profile:", profile);
+    console.log("[admin.booking.cancel] room:", room);
+
+    if (!profile?.email) {
+      console.warn("[admin.booking.cancel] No recipient email found");
+    } else if (!room?.name) {
+      console.warn("[admin.booking.cancel] No room name found");
+    } else {
+      const emailResult = await sendBookingCancellation({
+        to: profile.email,
+        recipientName: profile.full_name,
+        roomName: room.name,
+        building: room.building,
+        startLabel: formatTtDateTimeLabel(booking.start_time),
+        endLabel: formatTtDateTimeLabel(booking.end_time),
+        reason: reason || null,
+      });
+
+      console.log("[admin.booking.cancel] emailResult:", emailResult);
+    }
+  } catch (err) {
+    console.error("[admin.booking.cancel] cancellation email failed:", err);
+  }
 
   return NextResponse.json({ ok: true });
 }

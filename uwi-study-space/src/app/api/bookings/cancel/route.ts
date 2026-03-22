@@ -2,15 +2,20 @@ import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { writeAuditLog } from "@/lib/audit/write";
+import { sendBookingCancellation } from "@/lib/email/sendBookingCancellation";
+import { formatTtDateTimeLabel } from "@/lib/email/bookingEmailHelpers";
+
+type Role = "student" | "staff" | "admin" | "super_admin";
 
 /**
- * Student cancels their own booking.
+ * Normal user cancels their own booking.
  * Server enforces:
  * - authenticated
- * - role === student
+ * - role === student or staff
  * - booking belongs to them
  * - booking is active
  * - audit log (best effort) AFTER successful cancel
+ * - cancellation email (best effort)
  */
 export async function POST(req: Request) {
   const supabase = await createSupabaseServer();
@@ -35,21 +40,21 @@ export async function POST(req: Request) {
   }
 
   const me = Array.isArray(meRows) ? meRows[0] : null;
-  const role = me?.role ?? null;
+  const role = (me?.role ?? null) as Role | null;
 
-  if (role !== "student") {
+  if (role !== "student" && role !== "staff") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // 3) Parse payload
   const body = await req.json().catch(() => null);
-  const bookingId = String(body?.bookingId ?? "");
+  const bookingId = String(body?.bookingId ?? "").trim();
 
   if (!bookingId) {
     return NextResponse.json({ error: "Missing bookingId" }, { status: 400 });
   }
 
-  // 4) Ensure booking belongs to this user + is active (use admin client for reliable read)
+  // 4) Ensure booking belongs to this user + is active
   const admin = createSupabaseAdmin();
   const { data: booking, error: bookingErr } = await admin
     .from("bookings")
@@ -74,25 +79,70 @@ export async function POST(req: Request) {
     .from("bookings")
     .update({ status: "cancelled" })
     .eq("id", bookingId)
-    .eq("status", "active"); // ✅ extra guard
+    .eq("status", "active");
 
   if (cancelErr) {
-    return NextResponse.json({ error: "Cancel failed", detail: cancelErr.message }, { status: 400 });
+    return NextResponse.json(
+      { error: "Cancel failed", detail: cancelErr.message },
+      { status: 400 },
+    );
   }
 
-  // 6) Audit log (best effort — do not block success)
+  // 6) Audit log (best effort)
   writeAuditLog({
     actorUserId: user.id,
     action: "booking.cancel",
     targetType: "booking",
     targetId: bookingId,
     meta: {
-      via: "student",
+      via: role,
       roomId: booking.room_id,
       start: booking.start_time,
       end: booking.end_time,
     },
   }).catch(() => {});
+
+  // 7) Cancellation email (best effort)
+  try {
+    const [profileRes, roomRes] = await Promise.all([
+      admin
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", user.id)
+        .maybeSingle(),
+      admin
+        .from("rooms")
+        .select("name, building")
+        .eq("id", booking.room_id)
+        .maybeSingle(),
+    ]);
+
+    const profile = profileRes.data;
+    const room = roomRes.data;
+
+    console.log("[booking.cancel] profile:", profile);
+    console.log("[booking.cancel] room:", room);
+
+    if (!profile?.email) {
+      console.warn("[booking.cancel] No recipient email found");
+    } else if (!room?.name) {
+      console.warn("[booking.cancel] No room name found");
+    } else {
+      const emailResult = await sendBookingCancellation({
+        to: profile.email,
+        recipientName: profile.full_name,
+        roomName: room.name,
+        building: room.building,
+        startLabel: formatTtDateTimeLabel(booking.start_time),
+        endLabel: formatTtDateTimeLabel(booking.end_time),
+        reason: null,
+      });
+
+      console.log("[booking.cancel] emailResult:", emailResult);
+    }
+  } catch (err) {
+    console.error("[booking.cancel] cancellation email failed:", err);
+  }
 
   return NextResponse.json({ ok: true });
 }

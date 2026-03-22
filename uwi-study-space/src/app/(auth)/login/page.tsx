@@ -1,22 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createSupabaseBrowser();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const next = searchParams.get("next");
+  const queryError = searchParams.get("error");
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
+    setLocalError(null);
 
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
@@ -26,11 +30,15 @@ export default function LoginPage() {
     setLoading(false);
 
     if (error) {
-      setError(error.message);
+      setLocalError(error.message);
       return;
     }
 
-    router.push("/dashboard");
+    const target = next
+      ? `/auth/continue?next=${encodeURIComponent(next)}`
+      : "/auth/continue";
+
+    router.push(target);
     router.refresh();
   }
 
@@ -42,7 +50,7 @@ export default function LoginPage() {
       <form className="mt-5 space-y-3" onSubmit={onSubmit}>
         <input
           className="w-full rounded border px-3 py-2"
-          placeholder="email@my.uwi.edu"
+          placeholder="email@my.uwi.edu or email@uwi.edu"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoComplete="email"
@@ -58,7 +66,10 @@ export default function LoginPage() {
           required
         />
 
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {localError ? <p className="text-sm text-red-600">{localError}</p> : null}
+        {!localError && queryError ? (
+          <p className="text-sm text-red-600">{decodeURIComponent(queryError)}</p>
+        ) : null}
 
         <button
           className="w-full rounded bg-black px-3 py-2 text-white disabled:opacity-60"
@@ -74,6 +85,11 @@ export default function LoginPage() {
           Sign up
         </a>
       </p>
+      <p className="text-sm text-gray-700">
+      <a className="underline" href="/forgot-password">
+        Forgot your password?
+      </a>
+    </p>
     </div>
   );
 }
