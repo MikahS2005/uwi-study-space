@@ -371,51 +371,89 @@ export default function BookingsClient({ mode }: { mode: Mode }) {
   // Book-for-student submission
   // ---------------------------------------------------------------------------
   async function submitBookForStudent() {
-    if (!selectedStudent) {
-      alert("Select a student first.");
-      return;
-    }
-    if (!bfRoomId) {
-      alert("Select a room.");
-      return;
-    }
+  if (!selectedStudent) {
+    alert("Select a student first.");
+    return;
+  }
+  if (!bfRoomId) {
+    alert("Select a room.");
+    return;
+  }
 
-    // Build ISO times using TT offset. Server will validate slot rules + overlap.
-    const startISO = new Date(`${bfDate}T${bfStart}:00-04:00`).toISOString();
-    const endISO = new Date(`${bfDate}T${bfEnd}:00-04:00`).toISOString();
+  const startISO = new Date(`${bfDate}T${bfStart}:00-04:00`).toISOString();
+  const endISO = new Date(`${bfDate}T${bfEnd}:00-04:00`).toISOString();
 
-    setBfSubmitting(true);
-    try {
-      const res = await fetch("/api/admin/bookings/create", {
+  setBfSubmitting(true);
+
+  try {
+    const payload = {
+      roomId: Number(bfRoomId),
+      startISO,
+      endISO,
+      purpose: bfPurpose.trim() || null,
+      bookedForUserId: selectedStudent.id,
+    };
+
+    const res = await fetch("/api/admin/bookings/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (res.status === 409 && data?.canWaitlist) {
+      const ok = window.confirm(
+        `${data?.message ?? "This slot is already booked."}\n\nAdd this student to the waitlist instead?`
+      );
+
+      if (!ok) return;
+
+      const wlRes = await fetch("/api/admin/waitlist/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           roomId: Number(bfRoomId),
-          startISO,
-          endISO,
-          purpose: bfPurpose.trim() || null,
+          start: startISO,
+          end: endISO,
           bookedForUserId: selectedStudent.id,
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error ?? "Failed to create booking");
+      const wlData = await wlRes.json().catch(() => ({}));
 
-      // reset
+      if (!wlRes.ok) {
+        throw new Error(wlData?.error ?? "Failed to join waitlist.");
+      }
+
+      alert("Student added to waitlist.");
       setOpenBookForStudent(false);
       setSelectedStudent(null);
       setStudentQ("");
       setStudentResults([]);
       setBfRoomId("");
       setBfPurpose("");
-
-      await fetchBookings();
-    } catch (e: any) {
-      alert(e?.message ?? "Failed to create booking.");
-    } finally {
-      setBfSubmitting(false);
+      return;
     }
+
+    if (!res.ok) {
+      throw new Error(data?.error ?? data?.message ?? "Failed to create booking");
+    }
+
+    setOpenBookForStudent(false);
+    setSelectedStudent(null);
+    setStudentQ("");
+    setStudentResults([]);
+    setBfRoomId("");
+    setBfPurpose("");
+
+    await fetchBookings();
+  } catch (e: any) {
+    alert(e?.message ?? "Failed to create booking.");
+  } finally {
+    setBfSubmitting(false);
   }
+}
 
   function openBookForStudentModal() {
     // Keep UX clean:

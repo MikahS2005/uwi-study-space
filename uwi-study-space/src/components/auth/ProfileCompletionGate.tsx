@@ -13,7 +13,9 @@
  * - Skip redirect on /login, /signup, /verify etc. (auth routes)
  */
 
-import { useEffect, useMemo, useState } from "react";
+"use client";
+
+import { useEffect, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
@@ -21,52 +23,45 @@ export function ProfileCompletionGate() {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = useMemo(() => createSupabaseBrowser(), []);
-  const [checked, setChecked] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
     async function run() {
-      // Skip auth routes + the completion page itself
       const skip =
         pathname.startsWith("/login") ||
         pathname.startsWith("/signup") ||
         pathname.startsWith("/verify") ||
+        pathname.startsWith("/auth/callback") ||
+        pathname.startsWith("/auth/continue") ||
         pathname.startsWith("/complete-profile");
 
-      if (skip) {
-        if (mounted) setChecked(true);
-        return;
-      }
+      if (skip) return;
 
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // Not logged in -> let your existing routing handle it
-      if (!user) {
-        if (mounted) setChecked(true);
-        return;
-      }
+      if (!user || !mounted) return;
 
-      // Load profile
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("full_name, uwi_id")
+        .select("full_name, uwi_id, phone, faculty, academic_status")
         .eq("id", user.id)
         .maybeSingle();
 
       if (!mounted) return;
 
-      // If profile missing OR fields missing -> force completion
-      const missing = !profile?.full_name || !profile?.uwi_id;
+      const missing =
+        !profile?.full_name ||
+        !profile?.uwi_id ||
+        !profile?.phone ||
+        !profile?.faculty ||
+        !profile?.academic_status;
 
       if (error || missing) {
         router.replace("/complete-profile");
-        return;
       }
-
-      setChecked(true);
     }
 
     run();
@@ -76,7 +71,5 @@ export function ProfileCompletionGate() {
     };
   }, [pathname, router, supabase]);
 
-  // We render nothing; this is a redirect gate only.
-  // `checked` is here in case you want to add a top-loading bar later.
   return null;
 }

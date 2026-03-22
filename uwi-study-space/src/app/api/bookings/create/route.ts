@@ -1,29 +1,20 @@
+// src/app/api/bookings/create/route.ts
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { validateBookingOrThrow } from "@/lib/booking/rules";
 import { writeAuditLog } from "@/lib/audit/write";
+import { sendBookingConfirmation } from "@/lib/email/sendBookingConfirmation";
+import {
+  formatTtDateTimeLabel,
+  formatTtTimeLabel,
+} from "@/lib/email/bookingEmailHelpers";
 
-type Role = "student" | "admin" | "super_admin";
+type Role = "student" | "staff" | "admin" | "super_admin";
 
-/**
- * Student creates their own booking.
- * Server enforces:
- * - authenticated
- * - role === student
- * - booking rules (limits/overlaps/etc)
- * - insert via service role
- * - audit log (best effort) AFTER successful insert
- *
- * IMPORTANT:
- * If the room is already booked, return 409 with:
- *   { code: "ROOM_BOOKED", canWaitlist: true }
- * so the UI can show "Join Waitlist".
- */
 export async function POST(req: Request) {
   const supabase = await createSupabaseServer();
 
-  // 1) Auth user
   const {
     data: { user },
     error: authError,
@@ -33,7 +24,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 2) Role check via RPC (avoids profiles/RLS recursion)
   const { data: meRows, error: meError } = await supabase.rpc("get_my_profile");
   if (meError) {
     return NextResponse.json(
@@ -45,12 +35,11 @@ export async function POST(req: Request) {
   const me = Array.isArray(meRows) ? meRows[0] : null;
   const role = (me?.role ?? null) as Role | null;
 
-  // Only students use this route (admins use /api/admin/create-booking)
-  if (role !== "student") {
+  // normal self-booking users
+  if (role !== "student" && role !== "staff") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // 3) Parse payload (be defensive)
   const body = await req.json().catch(() => null);
   const roomId = Number(body?.roomId);
   const start = String(body?.start ?? "");
@@ -61,7 +50,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  // 4) Enforce rules (overlaps, max/day, max days ahead, slot mins, etc.)
   const validation = await validateBookingOrThrow({
     roomId,
     startISO: start,
@@ -72,10 +60,8 @@ export async function POST(req: Request) {
 
   if (!validation.ok) {
     const msg = validation.message ?? "Booking not allowed.";
-
-    // If the failure is specifically "already booked", signal waitlist option.
-    // We match a couple likely phrasings; keep the canonical message in rules.ts.
     const m = msg.toLowerCase();
+
     const isBookedConflict =
       m.includes("already booked") ||
       m.includes("overlap") ||
@@ -94,12 +80,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // All other rule failures are a normal 400
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
   }
 
-  // 5) Insert with service role
   const admin = createSupabaseAdmin();
+
   const { data: inserted, error: insertErr } = await admin
     .from("bookings")
     .insert({
@@ -115,22 +100,63 @@ export async function POST(req: Request) {
     .single();
 
   if (insertErr || !inserted) {
-    // If DB unique constraint / overlap protection exists, you can map that to 409 too,
-    // but keeping it simple for now.
     return NextResponse.json(
       { error: "Insert failed", detail: insertErr?.message },
       { status: 400 },
     );
   }
 
-  // 6) Audit log (best effort — do not block success)
   writeAuditLog({
     actorUserId: user.id,
     action: "booking.create",
     targetType: "booking",
     targetId: inserted.id,
-    meta: { roomId, start, end, via: "student" },
+    meta: { roomId, start, end, via: role },
   }).catch(() => {});
+
+  // best-effort confirmation email
+  // TEMP DEBUG VERSION
+  try {
+  const [profileRes, roomRes] = await Promise.all([
+    admin
+      .from("profiles")
+      .select("email, full_name")
+      .eq("id", user.id)
+      .maybeSingle(),
+    admin
+      .from("rooms")
+      .select("name, building")
+      .eq("id", roomId)
+      .maybeSingle(),
+  ]);
+
+  const profile = profileRes.data;
+  const room = roomRes.data;
+
+  console.log("[booking.create] profile:", profile);
+  console.log("[booking.create] room:", room);
+
+  if (!profile?.email) {
+    console.warn("[booking.create] No recipient email found");
+  } else if (!room?.name) {
+    console.warn("[booking.create] No room name found");
+  } else {
+    const emailResult = await sendBookingConfirmation({
+      to: "profile.email",
+      recipientName: profile.full_name,
+      roomName: room.name,
+      building: room.building,
+      startLabel: formatTtDateTimeLabel(start),
+      endLabel: formatTtDateTimeLabel(end),
+      bookingId: inserted.id,
+      purpose: purpose || null,
+    });
+
+    console.log("[booking.create] emailResult:", emailResult);
+  }
+} catch (err) {
+  console.error("[booking.create] confirmation email failed:", err);
+}
 
   return NextResponse.json({ ok: true, bookingId: inserted.id });
 }

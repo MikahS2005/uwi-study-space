@@ -1,10 +1,11 @@
-// src/app/api/admin/bookings/create/route.ts
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { validateBookingOrThrow } from "@/lib/booking/rules";
+import { sendBookingConfirmation } from "@/lib/email/sendBookingConfirmation";
+import { formatTtDateTimeLabel } from "@/lib/email/bookingEmailHelpers";
 
-type Role = "student" | "admin" | "super_admin";
+type Role = "student" | "staff" | "admin" | "super_admin";
 
 async function getAllowedRoomIdsForAdmin(opts: {
   supabase: Awaited<ReturnType<typeof createSupabaseServer>>;
@@ -13,7 +14,6 @@ async function getAllowedRoomIdsForAdmin(opts: {
 }): Promise<number[]> {
   const { supabase, admin, userId } = opts;
 
-  // Read scopes for the current admin (this is normal client supabase with user session)
   const { data: scopes, error: scopeErr } = await supabase
     .from("admin_scopes")
     .select("room_id, department_id")
@@ -31,7 +31,6 @@ async function getAllowedRoomIdsForAdmin(opts: {
     .filter((v): v is number => Number.isFinite(Number(v)))
     .map(Number);
 
-  // If they have department scopes, include all rooms in those departments
   let deptRoomIds: number[] = [];
   if (deptIds.length > 0) {
     const { data: deptRooms, error: deptRoomsErr } = await admin
@@ -48,12 +47,9 @@ async function getAllowedRoomIdsForAdmin(opts: {
 }
 
 export async function POST(req: Request) {
-  const supabase = await createSupabaseServer(); // user-session client
-  const admin = createSupabaseAdmin(); // service role
+  const supabase = await createSupabaseServer();
+  const admin = createSupabaseAdmin();
 
-  // ---------------------------------------------------------------------------
-  // 1) Auth
-  // ---------------------------------------------------------------------------
   const {
     data: { user },
     error: authError,
@@ -63,9 +59,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // ---------------------------------------------------------------------------
-  // 2) Role via RPC (avoid profiles RLS recursion)
-  // ---------------------------------------------------------------------------
   const { data: meRows, error: meError } = await supabase.rpc("get_my_profile");
   if (meError) {
     return NextResponse.json(
@@ -81,25 +74,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // ---------------------------------------------------------------------------
-  // 3) Body
-  // ---------------------------------------------------------------------------
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
 
   const roomId = Number(body.roomId);
   const startISO = String(body.startISO ?? "");
   const endISO = String(body.endISO ?? "");
-  const purpose = typeof body.purpose === "string" ? body.purpose : null;
+  const purpose = typeof body.purpose === "string" ? body.purpose.trim() : null;
   const bookedForUserId = String(body.bookedForUserId ?? "");
 
   if (!Number.isFinite(roomId) || !startISO || !endISO || !bookedForUserId) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  // ---------------------------------------------------------------------------
-  // 4) Scope enforcement (CRITICAL because service role bypasses RLS)
-  // ---------------------------------------------------------------------------
   if (role === "admin") {
     const allowedRoomIds = await getAllowedRoomIdsForAdmin({
       supabase,
@@ -119,9 +106,6 @@ export async function POST(req: Request) {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 5) Central validation rules (limits, overlap, hours, etc.)
-  // ---------------------------------------------------------------------------
   const v = await validateBookingOrThrow({
     roomId,
     startISO,
@@ -130,12 +114,31 @@ export async function POST(req: Request) {
     isStudentSelfBooking: false,
   });
 
-  if (!v.ok) return NextResponse.json({ error: v.message }, { status: 400 });
+  if (!v.ok) {
+    const msg = v.message ?? "Booking not allowed.";
+    const m = msg.toLowerCase();
 
-  // ---------------------------------------------------------------------------
-  // 6) Insert booking
-  // created_by is the profile UUID (same as auth.users.id in your schema)
-  // ---------------------------------------------------------------------------
+    const isBookedConflict =
+      m.includes("already booked") ||
+      m.includes("overlap") ||
+      m.includes("conflict") ||
+      m.includes("booked for this time");
+
+    if (isBookedConflict) {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: "ROOM_BOOKED",
+          message: msg,
+          canWaitlist: true,
+        },
+        { status: 409 },
+      );
+    }
+
+    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+  }
+
   const { data, error } = await admin
     .from("bookings")
     .insert({
@@ -149,11 +152,54 @@ export async function POST(req: Request) {
     .select("id")
     .single();
 
-  if (error) {
+  if (error || !data) {
     return NextResponse.json(
-      { error: "Create failed", detail: error.message },
+      { error: "Create failed", detail: error?.message },
       { status: 500 },
     );
+  }
+
+  // confirmation email to booked-for user
+  try {
+    const [profileRes, roomRes] = await Promise.all([
+      admin
+        .from("profiles")
+        .select("email, full_name")
+        .eq("id", bookedForUserId)
+        .maybeSingle(),
+      admin
+        .from("rooms")
+        .select("name, building")
+        .eq("id", roomId)
+        .maybeSingle(),
+    ]);
+
+    const profile = profileRes.data;
+    const room = roomRes.data;
+
+    console.log("[admin.booking.create] profile:", profile);
+    console.log("[admin.booking.create] room:", room);
+
+    if (!profile?.email) {
+      console.warn("[admin.booking.create] No recipient email found");
+    } else if (!room?.name) {
+      console.warn("[admin.booking.create] No room name found");
+    } else {
+      const emailResult = await sendBookingConfirmation({
+        to: profile.email,
+        recipientName: profile.full_name,
+        roomName: room.name,
+        building: room.building,
+        startLabel: formatTtDateTimeLabel(startISO),
+        endLabel: formatTtDateTimeLabel(endISO),
+        bookingId: data.id,
+        purpose: purpose || null,
+      });
+
+      console.log("[admin.booking.create] emailResult:", emailResult);
+    }
+  } catch (err) {
+    console.error("[admin.booking.create] confirmation email failed:", err);
   }
 
   return NextResponse.json({ ok: true, id: data.id });
