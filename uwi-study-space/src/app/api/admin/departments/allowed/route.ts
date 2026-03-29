@@ -47,7 +47,7 @@ export async function GET() {
   }
 
   const me = Array.isArray(meRows) ? meRows[0] : null;
-  const role = (me?.role ?? null) as "student" | "admin" | "super_admin" | null;
+  const role = (me?.role ?? null) as "student" | "staff" | "admin" | "super_admin" | null;
 
   if (role !== "admin" && role !== "super_admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

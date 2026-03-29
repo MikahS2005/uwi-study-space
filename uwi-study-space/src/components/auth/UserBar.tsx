@@ -30,17 +30,33 @@ export default function UserBar() {
     router.refresh();
   }
 
-  const email = me && "user" in me && me.user ? me.user.email : "—";
+  const email = me && "user" in me && me.user ? me.user.email : "Loading...";
   const role = me && "user" in me && me.user ? me.user.role ?? "student" : "—";
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded border p-3">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium">{email}</p>
-        <p className="text-xs text-gray-600">{String(role)}</p>
+    <div className="flex items-center gap-4 rounded-xl border border-[#E5E7EB] bg-white p-2 pr-4 shadow-sm">
+      {/* Small Avatar Circle */}
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#EAF6FF] text-[#003595] font-bold">
+        {email[0]?.toUpperCase()}
       </div>
 
-      <button className="rounded bg-black px-3 py-2 text-sm text-white" onClick={logout}>
+      <div className="min-w-0">
+        {/* Email set to Dark Text (#1F2937) */}
+        <p className="truncate text-sm font-bold text-[#1F2937] leading-none mb-1">
+          {email}
+        </p>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-[#003595]/60 leading-none">
+          {String(role)}
+        </p>
+      </div>
+
+      <div className="h-8 w-px bg-[#E5E7EB] mx-1" />
+
+      {/* Logout button using Primary Blue (#003595) */}
+      <button 
+        className="rounded-lg bg-[#003595] px-4 py-2 text-xs font-bold text-white transition-all hover:bg-[#002366] active:scale-95" 
+        onClick={logout}
+      >
         Logout
       </button>
     </div>

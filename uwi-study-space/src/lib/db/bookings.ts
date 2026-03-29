@@ -36,25 +36,26 @@ export async function countUserNoShowsInWindow(userId: string, windowDays: numbe
  *   existing.start < requested.end AND existing.end > requested.start
  */
 // src/lib/db/bookings.ts (inside roomHasOverlap)
-export async function roomHasOverlap(roomId: number, startISO: string, endISO: string) {
-  const supabase = await createSupabaseServer();
+// src/lib/db/bookings.ts
 
-  // fetch buffer
-  const { data: room } = await supabase
+export async function roomHasOverlap(roomId: number, startISO: string, endISO: string) {
+  const admin = createSupabaseAdmin();
+
+  const { data: room, error: roomErr } = await admin
     .from("rooms")
     .select("buffer_minutes, is_active")
     .eq("id", roomId)
     .maybeSingle();
 
-  if (!room || room.is_active === false) return true; // treat inactive as not bookable
+  if (roomErr) throw new Error(roomErr.message);
+  if (!room || room.is_active === false) return true;
 
   const buffer = Number(room.buffer_minutes ?? 0);
 
   const start = new Date(startISO);
   const end = new Date(endISO);
 
-  // 1) Blackout overlap blocks immediately
-  const { data: blk } = await supabase
+  const { data: blk, error: blkErr } = await admin
     .from("room_blackouts")
     .select("id")
     .eq("room_id", roomId)
@@ -62,17 +63,18 @@ export async function roomHasOverlap(roomId: number, startISO: string, endISO: s
     .gt("end_time", start.toISOString())
     .limit(1);
 
+  if (blkErr) throw new Error(blkErr.message);
   if ((blk ?? []).length > 0) return true;
 
-  // 2) Booking overlap with buffer:
-  // Compare request vs buffered existing bookings
-  const { data: bookings } = await supabase
+  const { data: bookings, error: bookingsErr } = await admin
     .from("bookings")
-    .select("start_time, end_time")
+    .select("id, start_time, end_time")
     .eq("room_id", roomId)
     .eq("status", "active")
-    .lt("start_time", end.toISOString()) // quick prefilter
+    .lt("start_time", end.toISOString())
     .gt("end_time", start.toISOString());
+
+  if (bookingsErr) throw new Error(bookingsErr.message);
 
   for (const b of bookings ?? []) {
     const bStart = new Date(b.start_time);
@@ -86,7 +88,6 @@ export async function roomHasOverlap(roomId: number, startISO: string, endISO: s
 
   return false;
 }
-
 // Buffered overlap:
 // Treat each existing booking as occupying [start-buffer, end+buffer).
 // Also treat the requested booking similarly (symmetry), by expanding requested range too.

@@ -8,7 +8,7 @@ type UserRow = {
   email: string;
   fullName: string;
   uwiId: string;
-  role: "student" | "admin" | "super_admin";
+  role: "student" | "staff"| "admin" | "super_admin";
   departmentId: number | null;
   departmentName: string | null;
   scopedDepartmentIds: number[];
@@ -20,7 +20,7 @@ type MeResponse = {
   user: null | {
     id: string;
     email: string | null;
-    role: "student" | "admin" | "super_admin" | null;
+    role: "student" |"staff"| "admin" | "super_admin" | null;
     departmentId: number | null;
   };
 };
@@ -35,7 +35,7 @@ function RoleBadge({ role }: { role: UserRow["role"] }) {
 
   return (
     <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1 ${cls}`}>
-      {role === "super_admin" ? "Super Admin" : role === "admin" ? "Admin" : "Student"}
+      {role === "super_admin" ? "Super Admin" : role === "admin" ? "Admin" : role === "staff" ? "Staff" : "Student"}
     </span>
   );
 }
@@ -270,6 +270,7 @@ export default function SuperAdminUsersPage() {
         >
           <option value="all">All Roles</option>
           <option value="student">Student</option>
+          <option value="Staff">Staff</option>
           <option value="admin">Admin</option>
           <option value="super_admin">Super Admin</option>
         </select>
@@ -346,6 +347,16 @@ export default function SuperAdminUsersPage() {
                     </button>
                   )}
 
+                  {u.role === "staff" && (
+                    <button
+                      onClick={() => updateRole(u.id, "admin")}
+                      disabled={busyUserId === u.id || busyScopes || isMe}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      title={isMe ? "Action disabled on your own account" : undefined}
+                    >
+                      {busyUserId === u.id ? "Working..." : "Make Admin"}
+                    </button>
+                  )}
                   {u.role === "admin" && (
                     <>
                       <button
@@ -376,6 +387,15 @@ export default function SuperAdminUsersPage() {
                         title={isMe ? "Action disabled on your own account" : undefined}
                       >
                         {busyUserId === u.id ? "Working..." : "Demote"}
+                      </button>
+
+                      <button
+                        onClick={() => updateRole(u.id, "staff")}
+                        disabled={busyUserId === u.id || busyScopes || isMe}
+                        className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                        title={isMe ? "Action disabled on your own account" : undefined}
+                      >
+                        {busyUserId === u.id ? "Working..." : "Demote to Staff"}
                       </button>
                     </>
                   )}
