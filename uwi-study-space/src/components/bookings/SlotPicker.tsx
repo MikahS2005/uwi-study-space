@@ -17,6 +17,20 @@ type Slot = {
   isBooked: boolean;
 };
 
+type StudentSearchRow = {
+  id: string;
+  full_name: string | null;
+  uwi_id: string | null;
+};
+
+type MemberInput = {
+  mode: "search" | "manual";
+  searchQuery: string;
+  profileUserId: string | null;
+  fullName: string;
+  studentId: string;
+};
+
 export default function SlotPicker({
   roomId,
   slots,
@@ -92,14 +106,103 @@ export default function SlotPicker({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Party members (kept from Isabella UI)
-  const [members, setMembers] = useState([{ firstName: "", lastName: "", studentId: "" }]);
-  const addMember = () => setMembers([...members, { firstName: "", lastName: "", studentId: "" }]);
-  const updateMember = (index: number, field: "firstName" | "lastName" | "studentId", value: string) => {
-    const newMembers = [...members];
-    newMembers[index][field] = value;
-    setMembers(newMembers);
-  };
-  const removeMember = (index: number) => setMembers(members.filter((_, i) => i !== index));
+  const [members, setMembers] = useState<MemberInput[]>([
+  {
+    mode: "manual",
+    searchQuery: "",
+    profileUserId: null,
+    fullName: "",
+    studentId: "",
+  },
+]);
+
+const [memberResults, setMemberResults] = useState<Record<number, StudentSearchRow[]>>({});
+const [memberLoading, setMemberLoading] = useState<Record<number, boolean>>({});
+
+function addMember() {
+  setMembers((prev) => [
+    ...prev,
+    {
+      mode: "manual",
+      searchQuery: "",
+      profileUserId: null,
+      fullName: "",
+      studentId: "",
+    },
+  ]);
+}
+
+function updateMember<K extends keyof MemberInput>(index: number, field: K, value: MemberInput[K]) {
+  setMembers((prev) => prev.map((m, i) => (i === index ? { ...m, [field]: value } : m)));
+}
+
+function removeMember(index: number) {
+  setMembers((prev) => prev.filter((_, i) => i !== index));
+  setMemberResults((prev) => {
+    const next = { ...prev };
+    delete next[index];
+    return next;
+  });
+}
+
+function selectMemberSearchResult(index: number, row: StudentSearchRow) {
+  setMembers((prev) =>
+    prev.map((m, i) =>
+      i === index
+        ? {
+            ...m,
+            mode: "search",
+            profileUserId: row.id,
+            searchQuery: row.full_name ?? "",
+            fullName: row.full_name ?? "",
+            studentId: row.uwi_id ?? "",
+          }
+        : m,
+    ),
+  );
+
+
+  setMemberResults((prev) => ({ ...prev, [index]: [] }));
+}
+
+useEffect(() => {
+  const timers: number[] = [];
+
+  members.forEach((member, index) => {
+    if (member.mode !== "search") {
+      setMemberResults((prev) => ({ ...prev, [index]: [] }));
+      return;
+    }
+
+    const term = member.searchQuery.trim();
+    if (!term) {
+      setMemberResults((prev) => ({ ...prev, [index]: [] }));
+      return;
+    }
+
+    const t = window.setTimeout(async () => {
+      setMemberLoading((prev) => ({ ...prev, [index]: true }));
+
+      try {
+        const res = await fetch(`/api/students/search?q=${encodeURIComponent(term)}`);
+        const data = await res.json().catch(() => ({}));
+
+        setMemberResults((prev) => ({
+          ...prev,
+          [index]: data?.rows ?? [],
+        }));
+      } catch {
+        setMemberResults((prev) => ({ ...prev, [index]: [] }));
+      } finally {
+        setMemberLoading((prev) => ({ ...prev, [index]: false }));
+      }
+    }, 300);
+
+    timers.push(t);
+  });
+
+  return () => timers.forEach((t) => window.clearTimeout(t));
+}, [members]);
 
   // Waitlist behavior (from main)
   const [showWaitlistCta, setShowWaitlistCta] = useState(false);
@@ -249,15 +352,12 @@ export default function SlotPicker({
           start: bookingRange.start,
           end: bookingRange.end,
           purpose: purpose.trim(),
-
-          // include members (API can ignore if not used yet)
-          members: members
-            .map((m) => ({
-              firstName: m.firstName.trim(),
-              lastName: m.lastName.trim(),
-              studentId: m.studentId.trim(),
-            }))
-            .filter((m) => m.firstName || m.lastName || m.studentId),
+          attendeeCount,
+        members: normalizedMembers.map((m) => ({
+          profileUserId: m.profileUserId,
+          fullName: m.fullName,
+          studentId: m.studentId,
+        })),
         }),
       });
 
@@ -329,9 +429,22 @@ async function joinWaitlist() {
   }
 }
 
+
   function isInSelectedRange(s: Slot) {
     return selectedSlots.some((x) => x.start === s.start);
   }
+
+const normalizedMembers = useMemo(() => {
+  return members
+    .map((m) => ({
+      profileUserId: m.profileUserId,
+      fullName: m.fullName.trim(),
+      studentId: m.studentId.trim(),
+    }))
+    .filter((m) => m.profileUserId || m.fullName || m.studentId);
+}, [members]);
+
+const attendeeCount = 1 + normalizedMembers.length;
 
   return (
     <div className="flex flex-col h-full font-sans">
@@ -398,53 +511,138 @@ async function joinWaitlist() {
         </div>
 
         {/* PARTY MEMBERS */}
-        <div className="mt-8 border-t border-[#E5E7EB] pt-6">
-          <h3 className="text-sm font-bold text-[#1F2937] mb-4">Other Party Members</h3>
-          <div className="space-y-3">
-            {members.map((member, index) => (
-              <div key={index} className="flex items-center gap-2">
-                <input
-                  className="flex-1 min-w-0 rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#1F2937] outline-none focus:ring-2 focus:ring-[#003595]/10"
-                  placeholder="First Name"
-                  value={member.firstName}
-                  onChange={(e) => updateMember(index, "firstName", e.target.value)}
-                  disabled={submitting}
-                />
-                <input
-                  className="flex-1 min-w-0 rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#1F2937] outline-none focus:ring-2 focus:ring-[#003595]/10"
-                  placeholder="Last Name"
-                  value={member.lastName}
-                  onChange={(e) => updateMember(index, "lastName", e.target.value)}
-                  disabled={submitting}
-                />
-                <input
-                  className="w-20 md:w-32 rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#1F2937] outline-none focus:ring-2 focus:ring-[#003595]/10"
-                  placeholder="ID"
-                  value={member.studentId}
-                  onChange={(e) => updateMember(index, "studentId", e.target.value)}
-                  disabled={submitting}
-                />
-                <button
-                  type="button"
-                  onClick={() => removeMember(index)}
-                  className="text-gray-400 hover:text-red-500 p-1"
-                  disabled={submitting || members.length <= 1}
-                  aria-label="Remove member"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
+<div className="mt-8 border-t border-[#E5E7EB] pt-6">
+  <h3 className="mb-4 text-sm font-bold text-[#1F2937]">Other Party Members</h3>
+
+  <div className="space-y-4">
+    {members.map((member, index) => (
+      <div key={index} className="rounded-2xl border border-[#E5E7EB] p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-semibold text-[#1F2937]">
+            Attendee {index + 1}
           </div>
+
           <button
             type="button"
-            onClick={addMember}
-            className="mt-3 text-sm font-bold text-[#003595] hover:underline"
-            disabled={submitting}
+            onClick={() => removeMember(index)}
+            className="rounded-lg px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+            disabled={submitting || members.length <= 1}
           >
-            + Add person
+            Remove
           </button>
         </div>
+
+        <div className="mb-3 flex gap-2">
+          <button
+            type="button"
+            onClick={() => updateMember(index, "mode", "manual")}
+            className={`rounded-xl px-3 py-2 text-xs font-medium ${
+              member.mode === "manual"
+                ? "bg-[#003595] text-white"
+                : "border border-[#E5E7EB] bg-white text-[#1F2937]"
+            }`}
+          >
+            Enter manually
+          </button>
+
+          <button
+            type="button"
+            onClick={() => updateMember(index, "mode", "search")}
+            className={`rounded-xl px-3 py-2 text-xs font-medium ${
+              member.mode === "search"
+                ? "bg-[#003595] text-white"
+                : "border border-[#E5E7EB] bg-white text-[#1F2937]"
+            }`}
+          >
+            Search account
+          </button>
+        </div>
+
+        {member.mode === "search" ? (
+          <div>
+            <label className="block text-xs font-medium text-[#1F2937] opacity-70">
+              Search by name or ID
+            </label>
+
+            <input
+              className="mt-1 w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#1F2937] outline-none focus:ring-2 focus:ring-[#003595]/10"
+              placeholder="Search by name or ID"
+              value={member.searchQuery}
+              onChange={(e) => updateMember(index, "searchQuery", e.target.value)}
+              disabled={submitting}
+            />
+
+            <div className="mt-2 rounded-xl border border-[#E5E7EB]">
+              {memberLoading[index] ? (
+                <div className="p-3 text-sm text-slate-600">Searching…</div>
+              ) : (memberResults[index] ?? []).length === 0 ? (
+                <div className="p-3 text-sm text-slate-500">No results</div>
+              ) : (
+                <div className="max-h-48 overflow-auto">
+                  {(memberResults[index] ?? []).map((row) => (
+                    <button
+                      key={row.id}
+                      type="button"
+                      onClick={() => selectMemberSearchResult(index, row)}
+                      className="w-full border-b px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
+                    >
+                      <div className="text-sm font-medium text-slate-900">
+                        {row.full_name || "Unnamed student"}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        ID: {row.uwi_id || "—"}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {(member.fullName || member.studentId) && (
+              <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                <div className="font-medium">{member.fullName || "—"}</div>
+                <div className="text-xs text-slate-500">ID: {member.studentId || "—"}</div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-medium text-[#1F2937] opacity-70">Name</label>
+              <input
+                className="mt-1 w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#1F2937] outline-none focus:ring-2 focus:ring-[#003595]/10"
+                placeholder="Full name"
+                value={member.fullName}
+                onChange={(e) => updateMember(index, "fullName", e.target.value)}
+                disabled={submitting}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-[#1F2937] opacity-70">ID number</label>
+              <input
+                className="mt-1 w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#1F2937] outline-none focus:ring-2 focus:ring-[#003595]/10"
+                placeholder="ID number"
+                value={member.studentId}
+                onChange={(e) => updateMember(index, "studentId", e.target.value)}
+                disabled={submitting}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    ))}
+  </div>
+
+  <button
+    type="button"
+    onClick={addMember}
+    className="mt-3 text-sm font-bold text-[#003595] hover:underline"
+    disabled={submitting}
+  >
+    + Add person
+  </button>
+</div>
 
         {/* PURPOSE */}
         <div className="mt-5 pb-4">

@@ -1,9 +1,5 @@
 import { createSupabaseServer } from "@/lib/supabase/server";
 
-/**
- * Fetch the current user's profile record (role, etc.).
- * Used by server routes to enforce role checks.
- */
 export async function getMyProfile() {
   const supabase = await createSupabaseServer();
 
@@ -15,7 +11,7 @@ export async function getMyProfile() {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, email, role, department")
+    .select("id, email, role, department_id")
     .eq("id", user.id)
     .maybeSingle();
 

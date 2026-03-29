@@ -8,189 +8,322 @@ UWI Study Space is a Next.js application for managing study room bookings at the
 ## Directory Layout
 
 ```
-uwi-study-space/
-├── public/                          # Static assets
-│   └── ajl_normal.jpg              # Library image
-│
-├── src/
-│   ├── app/                         # Next.js App Router
-│   │   ├── (app)/                  # Protected app routes (auth required)
-│   │   │   ├── layout.tsx          # App shell with SidebarLayout + ProfileCompletionGate
-│   │   │   ├── dashboard/
-│   │   │   │   └── page.tsx        # Student dashboard (stats, upcoming bookings)
-│   │   │   ├── rooms/
-│   │   │   │   └── page.tsx        # Browse & filter rooms, book room modal
-│   │   │   ├── schedule/
-│   │   │   │   └── page.tsx        # Monthly calendar view with quick book
-│   │   │   ├── bookings/
-│   │   │   │   └── page.tsx        # My bookings (list & calendar views)
-│   │   │   ├── admin/              # Department admin routes
-│   │   │   │   ├── layout.tsx      # Admin shell with tabs + role gating
-│   │   │   │   ├── page.tsx        # Admin home placeholder
-│   │   │   │   ├── rooms/
-│   │   │   │   │   └── page.tsx    # Manage rooms (edit, toggle active)
-│   │   │   │   ├── bookings/
-│   │   │   │   │   └── page.tsx    # Admin view all bookings
-│   │   │   │   ├── waitlist/
-│   │   │   │   │   └── page.tsx    # Waitlist management
-│   │   │   │   └── reports/
-│   │   │   │       └── page.tsx    # Reports & analytics
-│   │   │   └── super-admin/        # Super admin only routes
-│   │   │       ├── layout.tsx      # Super admin shell with tabs
-│   │   │       ├── page.tsx        # Super admin home
-│   │   │       ├── rooms/
-│   │   │       │   └── page.tsx    # Manage all rooms
-│   │   │       ├── bookings/
-│   │   │       │   └── page.tsx    # View all bookings
-│   │   │       ├── departments/
-│   │   │       │   └── page.tsx    # Create/rename/delete departments
-│   │   │       ├── users/
-│   │   │       │   └── page.tsx    # Manage users, roles, scopes
-│   │   │       ├── waitlist/
-│   │   │       │   └── page.tsx    # Global waitlist management
-│   │   │       ├── reports/
-│   │   │       │   └── page.tsx    # Global reports
-│   │   │       └── settings/
-│   │   │           └── page.tsx    # Booking rules, enforcement settings
-│   │   ├── (auth)/                 # Auth routes (no sidebar)
-│   │   │   └── login/
-│   │   │       └── page.tsx        # Login page (Supabase Auth)
-│   │   ├── api/                    # API routes
-│   │   │   ├── me/
-│   │   │   │   └── route.ts        # GET /api/me (current user + role)
-│   │   │   ├── departments/
-│   │   │   │   └── route.ts        # GET /api/departments (list all)
-│   │   │   ├── bookings/
-│   │   │   │   ├── route.ts        # Booking operations (student)
-│   │   │   │   └── create/
-│   │   │   │       └── route.ts    # POST create student booking
-│   │   │   ├── rooms/
-│   │   │   │   └── route.ts        # Room queries & operations
-│   │   │   ├── admin/
-│   │   │   │   ├── bookings/
-│   │   │   │   │   └── route.ts    # GET admin bookings
-│   │   │   │   ├── create-booking/
-│   │   │   │   │   └── route.ts    # POST admin creates booking for user/external
-│   │   │   │   ├── mark-no-show/
-│   │   │   │   │   └── route.ts    # POST mark booking as no_show
-│   │   │   │   ├── rooms/
-│   │   │   │   │   └── route.ts    # Room management operations
-│   │   │   │   ├── departments/
-│   │   │   │   │   └── route.ts    # Admin department operations
-│   │   │   │   ├── reports/
-│   │   │   │   │   └── route.ts    # Admin reports
-│   │   │   │   ├── students/
-│   │   │   │   │   └── route.ts    # Admin student operations
-│   │   │   │   ├── settings/
-│   │   │   │   │   └── route.ts    # Admin settings access
-│   │   │   │   ├── waitlist/
-│   │   │   │   │   └── (waitlist operations)
-│   │   │   │   └── (other admin operations)
-│   │   │   └── super-admin/
-│   │   │       ├── users/
-│   │   │       │   ├── list/
-│   │   │       │   │   └── route.ts # GET users list
-│   │   │       │   └── update-role/
-│   │   │       │       └── route.ts # POST update user role
-│   │   │       ├── scopes/
-│   │   │       │   └── (scope management)
-│   │   │       ├── departments/
-│   │   │       │   └── (department crud)
-│   │   │       ├── bookings/
-│   │   │       │   └── route.ts    # Super admin bookings
-│   │   │       ├── reports/
-│   │   │       │   └── route.ts    # Global reports
-│   │   │       ├── rooms/
-│   │   │       │   └── route.ts    # Global room management
-│   │   │       ├── settings/
-│   │   │       │   └── route.ts    # Global settings management
-│   │   │       ├── users/
-│   │   │       │   └── (user management)
-│   │   │       ├── waitlist/
-│   │   │       │   └── (global waitlist)
-│   │   │       └── (other super-admin operations)
-│   │   ├── layout.tsx              # Root layout
-│   │   ├── page.tsx                # Public landing page
-│   │   └── globals.css             # Global Tailwind styles
-│   │
-│   ├── components/
-│   │   ├── auth/
-│   │   │   ├── UserBar.tsx                 # Show current user email + role
-│   │   │   └── ProfileCompletionGate.tsx  # Redirect if profile incomplete
-│   │   ├── layout/
-│   │   │   └── SidebarLayout.tsx          # Main sidebar + nav (student/admin/super-admin versions)
-│   │   ├── rooms/
-│   │   │   ├── Filters.tsx                # Building, capacity, amenity filters
-│   │   │   ├── RoomCard.tsx               # Room card with status, hours, amenities
-│   │   │   └── RoomsDatePicker.tsx        # Date carousel (7-day view)
-│   │   ├── bookings/
-│   │   │   ├── BookingsFilterBar.tsx           # When/status/view mode filters
-│   │   │   ├── MyBookingsList.tsx              # Booking cards with pagination
-│   │   │   ├── MyBookingsCalendar.tsx          # Calendar view of bookings
-│   │   │   ├── MyBookingsMonthCalendar.tsx     # Month calendar for bookings
-│   │   │   ├── SlotPicker.tsx                  # Reusable slot selection component
-│   │   │   ├── SlotPickerModal.tsx             # Modal wrapper for slot picker
-│   │   │   ├── SlotPickerModalAutoOpen.tsx     # Auto-opening modal for slots
-│   │   │   └── useRoomAvailability.ts          # Hook for room availability data
-│   │   ├── schedule/
-│   │   │   ├── ScheduleClient.tsx         # Month selector, day picker, quick book
-│   │   │   └── ScheduleGrid.tsx           # Time-grid view of rooms + busy intervals
-│   │   ├── admin/
-│   │   │   ├── NewRoomButton.tsx          # Button to create new room
-│   │   │   ├── NewRoomModal.tsx           # Modal for room creation
-│   │   │   ├── RoomEditModal.tsx          # Edit room details
-│   │   │   ├── RoomRowActions.tsx         # Toggle active, edit, delete actions
-│   │   │   ├── rooms/
-│   │   │   │   └── (Room management components)
-│   │   │   ├── bookings/
-│   │   │   │   └── (Booking management components)
-│   │   │   ├── reports/
-│   │   │   │   └── (Report components)
-│   │   │   └── waitlist/
-│   │   │       └── (Waitlist management components)
-│   │
-│   ├── lib/
-│   │   ├── supabase/
-│   │   │   ├── server.ts           # Supabase client (server-side, auth cookie)
-│   │   │   ├── client.ts           # Supabase client (browser)
-│   │   │   └── admin.ts            # Supabase admin client (service role)
-│   │   ├── db/
-│   │   │   ├── rooms.ts            # getRoomById, getRoomsFiltered, etc.
-│   │   │   ├── bookings.ts         # Booking CRUD helpers
-│   │   │   ├── availability.ts     # getRoomAvailabilityForDate, slot building
-│   │   │   ├── myBookings.ts       # getMyBookingsPaged, calendar queries
-│   │   │   ├── schedule.ts         # getRoomsForSchedule, getActiveBookingsBetween
-│   │   │   ├── studentDashboard.ts # getStudentDashboard (stats + upcoming)
-│   │   │   ├── adminPanel.ts       # Admin queries (bookings, waitlist, stats)
-│   │   │   ├── adminScopes.ts      # adminHasRoomAccess, getUserDepartments
-│   │   │   ├── settings.ts         # getSettings, updateSettings
-│   │   │   ├── queries.ts          # General queries (filtered rooms, booked slots)
-│   │   │   └── departments.ts      # getDepartments, createDept, renameDept
-│   │   ├── booking/
-│   │   │   ├── rules.ts            # validateBooking, checkOverlaps, enforceMaxDays
-│   │   │   └── time.ts             # buildSlotsForDay, time helpers
-│   │   ├── schedule/
-│   │   │   └── buildMonthDTO.ts    # ScheduleMonthDTO + month building logic
-│   │   ├── audit/
-│   │   │   └── write.ts            # writeAuditLog (best-effort logging)
-│   │   └── utils/
-│   │       └── (utility helpers as needed)
-│   │
-│   └── middleware.ts               # Redirect logic (auth checks, profile completion)
-│
-├── .env.local                      # Environment variables (local dev)
-├── .eslintrc.json                  # ESLint config
-├── .gitignore                      # Git ignore rules
-├── .prettierignore                 # Prettier ignore patterns
-├── .prettierrc.json                # Prettier config
-├── eslint.config.mjs               # ESLint config (modern)
-├── next.config.ts                  # Next.js config
-├── package.json                    # Dependencies & scripts
-├── postcss.config.mjs              # PostCSS config (Tailwind)
-├── PROJECT_STRUCTURE.md            # This file
-├── README.md                        # Setup & overview
-├── tsconfig.json                   # TypeScript config
-└── next-env.d.ts                   # Auto-generated Next.js types
+.
+├── .env.local
+├── .eslintrc.json
+├── .gitignore
+├── .prettierignore
+├── .prettierrc.json
+├── PROJECT_STRUCTURE.md
+├── README.md
+├── eslint.config.mjs
+├── next-env.d.ts
+├── next.config.ts
+├── package-lock.json
+├── package.json
+├── postcss.config.mjs
+├── public
+│   ├── Placeholder_Room.jpg
+│   ├── ajl_normal.jpg
+│   ├── assets
+│   │   ├── almajordanHeader.jpg
+│   │   ├── almjhero2.png
+│   │   ├── books.png
+│   │   ├── circuit_scope.png
+│   │   └── uwi-logo.png
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── next.svg
+│   ├── vercel.svg
+│   └── window.svg
+├── src
+│   ├── app
+│   │   ├── (app)
+│   │   │   ├── admin
+│   │   │   │   ├── bookings
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── layout.tsx
+│   │   │   │   ├── page.tsx
+│   │   │   │   ├── reports
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── rooms
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── waitlist
+│   │   │   │       └── page.tsx
+│   │   │   ├── bookings
+│   │   │   │   └── page.tsx
+│   │   │   ├── complete-profile
+│   │   │   │   └── page.tsx
+│   │   │   ├── dashboard
+│   │   │   │   └── page.tsx
+│   │   │   ├── layout.tsx
+│   │   │   ├── rooms
+│   │   │   │   └── page.tsx
+│   │   │   ├── schedule
+│   │   │   │   └── page.tsx
+│   │   │   ├── super-admin
+│   │   │   │   ├── bookings
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── departments
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── layout.tsx
+│   │   │   │   ├── page.tsx
+│   │   │   │   ├── reports
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── rooms
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── settings
+│   │   │   │   │   └── page.tsx
+│   │   │   │   ├── users
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── waitlist
+│   │   │   │       └── page.tsx
+│   │   │   └── waitlist
+│   │   │       └── page.tsx
+│   │   ├── (auth)
+│   │   │   ├── forgot-password
+│   │   │   │   └── page.tsx
+│   │   │   ├── layout.tsx
+│   │   │   ├── login
+│   │   │   │   └── page.tsx
+│   │   │   ├── reset-password
+│   │   │   │   └── page.tsx
+│   │   │   ├── signup
+│   │   │   │   └── page.tsx
+│   │   │   └── verify
+│   │   │       └── page.tsx
+│   │   ├── api
+│   │   │   ├── admin
+│   │   │   │   ├── bookings
+│   │   │   │   │   ├── [id]
+│   │   │   │   │   │   ├── cancel
+│   │   │   │   │   │   │   └── route.ts
+│   │   │   │   │   │   └── no-show
+│   │   │   │   │   │       └── route.ts
+│   │   │   │   │   ├── create
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── create-booking
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── departments
+│   │   │   │   │   └── allowed
+│   │   │   │   │       └── route.ts
+│   │   │   │   ├── mark-no-show
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── reports
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── rooms
+│   │   │   │   │   ├── blackouts
+│   │   │   │   │   │   ├── create
+│   │   │   │   │   │   │   └── route.ts
+│   │   │   │   │   │   ├── delete
+│   │   │   │   │   │   │   └── route.ts
+│   │   │   │   │   │   └── list
+│   │   │   │   │   │       └── route.ts
+│   │   │   │   │   ├── buffer
+│   │   │   │   │   │   ├── get
+│   │   │   │   │   │   │   └── route.ts
+│   │   │   │   │   │   └── update
+│   │   │   │   │   │       └── route.ts
+│   │   │   │   │   ├── create
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   ├── opening-hours
+│   │   │   │   │   │   ├── get
+│   │   │   │   │   │   │   └── route.ts
+│   │   │   │   │   │   └── update
+│   │   │   │   │   │       └── route.ts
+│   │   │   │   │   ├── status
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   ├── toggle-active
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   └── update
+│   │   │   │   │       └── route.ts
+│   │   │   │   ├── settings
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── students
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── waitlist
+│   │   │   │       ├── [id]
+│   │   │   │       │   ├── cancel
+│   │   │   │       │   │   └── route.ts
+│   │   │   │       │   ├── expire
+│   │   │   │       │   │   └── route.ts
+│   │   │   │       │   ├── fulfill
+│   │   │   │       │   │   └── route.ts
+│   │   │   │       │   └── offer
+│   │   │   │       │       └── route.ts
+│   │   │   │       ├── accept
+│   │   │   │       │   └── route.ts
+│   │   │   │       ├── join
+│   │   │   │       │   └── route.ts
+│   │   │   │       ├── list
+│   │   │   │       │   └── route.ts
+│   │   │   │       ├── my
+│   │   │   │       │   └── route.ts
+│   │   │   │       ├── offer
+│   │   │   │       │   └── route.ts
+│   │   │   │       └── route.ts
+│   │   │   ├── bookings
+│   │   │   │   ├── cancel
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── create
+│   │   │   │       └── route.ts
+│   │   │   ├── cron
+│   │   │   │   └── booking-reminders
+│   │   │   │       └── route.ts
+│   │   │   ├── departments
+│   │   │   │   └── route.ts
+│   │   │   ├── me
+│   │   │   │   └── route.ts
+│   │   │   ├── rooms
+│   │   │   │   └── [id]
+│   │   │   │       ├── availability
+│   │   │   │       │   └── route.ts
+│   │   │   │       └── status
+│   │   │   │           └── route.ts
+│   │   │   ├── super-admin
+│   │   │   │   ├── departments
+│   │   │   │   │   ├── create
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   ├── delete
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   ├── list
+│   │   │   │   │   │   └── route.ts
+│   │   │   │   │   └── rename
+│   │   │   │   │       └── route.ts
+│   │   │   │   ├── scopes
+│   │   │   │   │   └── set-departments
+│   │   │   │   │       └── route.ts
+│   │   │   │   ├── settings
+│   │   │   │   │   ├── route.ts
+│   │   │   │   │   └── update
+│   │   │   │   │       └── route.ts
+│   │   │   │   └── users
+│   │   │   │       ├── list
+│   │   │   │       │   └── route.ts
+│   │   │   │       └── update-role
+│   │   │   │           └── route.ts
+│   │   │   └── waitlist
+│   │   │       ├── accept
+│   │   │       │   └── route.ts
+│   │   │       ├── join
+│   │   │       │   └── route.ts
+│   │   │       └── my
+│   │   │           └── route.ts
+│   │   ├── auth
+│   │   │   ├── callback
+│   │   │   │   └── route.ts
+│   │   │   └── continue
+│   │   │       └── route.ts
+│   │   ├── favicon.ico
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── components
+│   │   ├── admin
+│   │   │   ├── NewRoomButton.tsx
+│   │   │   ├── NewRoomModal.tsx
+│   │   │   ├── RoomEditModal.tsx
+│   │   │   ├── RoomRowActions.tsx
+│   │   │   ├── bookings
+│   │   │   │   ├── BookingsClient.tsx
+│   │   │   │   └── BookingsPage.tsx
+│   │   │   ├── reports
+│   │   │   │   ├── ReportsClient.tsx
+│   │   │   │   └── ReportsPage.tsx
+│   │   │   ├── rooms
+│   │   │   │   └── RoomsManagementPage.tsx
+│   │   │   └── waitlist
+│   │   │       ├── WaitlistManagement.tsx
+│   │   │       └── WaitlistPage.tsx
+│   │   ├── auth
+│   │   │   ├── ProfileCompletionGate.tsx
+│   │   │   └── UserBar.tsx
+│   │   ├── bookings
+│   │   │   ├── BookingsFilterBar.tsx
+│   │   │   ├── MyBookingsCalendar.tsx
+│   │   │   ├── MyBookingsList.tsx
+│   │   │   ├── MyBookingsMonthCalendar.tsx
+│   │   │   ├── MyOffersPanel.tsx
+│   │   │   ├── SlotPicker.tsx
+│   │   │   ├── SlotPickerModal.tsx
+│   │   │   ├── SlotPickerModalAutoOpen.tsx
+│   │   │   └── useRoomAvailability.ts
+│   │   ├── landing
+│   │   │   ├── About.tsx
+│   │   │   ├── BookingOptions.tsx
+│   │   │   ├── FAQ.tsx
+│   │   │   ├── Footer.tsx
+│   │   │   ├── Header.tsx
+│   │   │   ├── Hero.tsx
+│   │   │   ├── HowItWorks.tsx
+│   │   │   ├── RulesPreview.tsx
+│   │   │   └── Sidebar.tsx
+│   │   ├── layout
+│   │   │   └── SidebarLayout.tsx
+│   │   ├── login
+│   │   │   └── login
+│   │   │       └── sign up
+│   │   ├── rooms
+│   │   │   ├── Filters.tsx
+│   │   │   ├── RoomCard.tsx
+│   │   │   └── RoomsDatePicker.tsx
+│   │   ├── schedule
+│   │   │   ├── ScheduleClient.tsx
+│   │   │   └── ScheduleGrid.tsx
+│   │   ├── shared
+│   │   │   └── ExpiryCountdown.tsx
+│   │   └── waitlist
+│   │       └── StudentWaitlistPage.tsx
+│   ├── hooks
+│   │   └── use-mobile.ts
+│   ├── lib
+│   │   ├── api
+│   │   │   └── routeParams.ts
+│   │   ├── audit
+│   │   │   └── write.ts
+│   │   ├── booking
+│   │   │   ├── rules.ts
+│   │   │   └── time.ts
+│   │   ├── db
+│   │   │   ├── adminAllowedRooms.ts
+│   │   │   ├── adminPanel.ts
+│   │   │   ├── adminScopes.ts
+│   │   │   ├── availability.ts
+│   │   │   ├── bookings.ts
+│   │   │   ├── myBookings.ts
+│   │   │   ├── profiles.ts
+│   │   │   ├── queries.ts
+│   │   │   ├── rooms.ts
+│   │   │   ├── schedule.ts
+│   │   │   ├── settings.ts
+│   │   │   ├── studentDashboard.ts
+│   │   │   └── waitlist.ts
+│   │   ├── email
+│   │   │   ├── bookingEmailHelpers.ts
+│   │   │   ├── resend.ts
+│   │   │   ├── sendBookingCancellation.ts
+│   │   │   ├── sendBookingConfirmation.ts
+│   │   │   ├── sendBookingReminder.ts
+│   │   │   ├── sendWaitlistOffer.ts
+│   │   │   ├── templates
+│   │   │   │   └── base.ts
+│   │   │   └── testing.ts
+│   │   ├── profile
+│   │   │   └── options.ts
+│   │   ├── schedule
+│   │   │   └── buildMonthDTO.ts
+│   │   ├── supabase
+│   │   │   ├── admin.ts
+│   │   │   ├── client.ts
+│   │   │   └── server.ts
+│   │   └── utils
+│   │       ├── datetime.ts
+│   │       └── publicOrigin.ts
+│   └── middleware.ts
+└── tsconfig.json
+
+130 directories, 184 files
 
 ```
 
