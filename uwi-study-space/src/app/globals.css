@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
@@ -25,13 +24,68 @@
   --color-border-light: #E5E7EB;
   --color-border-dark: #374151;
   --font-serif: Georgia, serif;
-
 }
 
 /* ─── Base styles ───────────────────────────────────────────────────────── */
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  /* Always white — dark mode for the app is class-based (.dark), not OS-driven */
-  background: #ffffff;
-  color: #171717;
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-surface-light);
+  color: var(--color-text-light);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Better text selection */
+::selection {
+  background: rgba(0, 53, 149, 0.14);
+  color: var(--color-primary-dark);
+}
+
+/* Make interactive elements feel smoother */
+button,
+a,
+input,
+textarea,
+select {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease,
+    opacity 180ms ease;
+}
+
+/* Premium thin scrollbar used by SlotPicker / modal areas */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 53, 149, 0.28) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 53, 149, 0.22);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 53, 149, 0.34);
+  background-clip: padding-box;
 }
