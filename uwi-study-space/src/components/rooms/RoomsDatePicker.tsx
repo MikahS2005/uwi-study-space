@@ -1,3 +1,4 @@
+//roomDatePicker
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
@@ -31,22 +32,18 @@ export default function RoomsDatePicker(props: { maxDaysAhead: number }) {
   const router = useRouter();
   const sp = useSearchParams();
 
-  // 1. Base Dates
   const todayISO = getTodayISO();
   const todayDate = parseISO(todayISO);
-  
-  // Calculate the max allowed ISO string
+
   const maxDateISO = addDays(todayDate, props.maxDaysAhead);
 
-  const selectedDateISO = 
+  const selectedDateISO =
     sp.get("date") && /^\d{4}-\d{2}-\d{2}$/.test(sp.get("date") as string)
       ? (sp.get("date") as string)
       : todayISO;
 
-  // 2. View State
   const [viewStartISO, setViewStartISO] = useState(selectedDateISO);
 
-  // Sync view if URL changes
   useEffect(() => {
     const selected = parseISO(selectedDateISO);
     const view = parseISO(viewStartISO);
@@ -56,26 +53,22 @@ export default function RoomsDatePicker(props: { maxDaysAhead: number }) {
     }
   }, [selectedDateISO, viewStartISO]);
 
-  // 3. Generate 7 Days for Carousel
   const visibleDates = useMemo(() => {
     const start = parseISO(viewStartISO);
     const days = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
-      
-      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      
+
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+        d.getDate()
+      ).padStart(2, "0")}`;
+
       const dayName = d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
       const dayNum = d.getDate();
       const monthName = d.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
-      
-      // Determine if it is a weekend
-      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
 
-      // Disable if:
-      // 1. It's past the max days ahead
-      // 2. OR It is a weekend
+      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
       const isDisabled = iso > maxDateISO || isWeekend;
 
       days.push({ iso, dayName, dayNum, monthName, isWeekend, isDisabled });
@@ -83,10 +76,9 @@ export default function RoomsDatePicker(props: { maxDaysAhead: number }) {
     return days;
   }, [viewStartISO, maxDateISO]);
 
-  // 4. Interaction Handlers
   function handleDateClick(iso: string, isDisabled: boolean) {
-    if (isDisabled) return; // Strict Guard Clause
-    
+    if (isDisabled) return;
+
     const next = new URLSearchParams(sp.toString());
     next.set("date", iso);
     next.delete("bookRoomId");
@@ -97,10 +89,12 @@ export default function RoomsDatePicker(props: { maxDaysAhead: number }) {
     const currentStart = parseISO(viewStartISO);
     const newStart = new Date(currentStart);
     newStart.setDate(currentStart.getDate() + days);
-    
-    // Convert to ISO to check bounds
-    const newStartISO = `${newStart.getFullYear()}-${String(newStart.getMonth() + 1).padStart(2, "0")}-${String(newStart.getDate()).padStart(2, "0")}`;
-    
+
+    const newStartISO = `${newStart.getFullYear()}-${String(newStart.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}-${String(newStart.getDate()).padStart(2, "0")}`;
+
     if (newStartISO < todayISO) {
       setViewStartISO(todayISO);
     } else {
@@ -117,81 +111,108 @@ export default function RoomsDatePicker(props: { maxDaysAhead: number }) {
   });
 
   return (
-    <div className="w-full">
-      <div className="mb-4 flex items-center justify-between">
-        <label className="text-xs font-bold text-black uppercase tracking-widest">
-          Booking date
-        </label>
-        <span className="text-xs font-medium text-gray-500">
-          Max booking window: {props.maxDaysAhead} days
-        </span>
-      </div>
-
-      <div className="flex items-center gap-2 select-none">
-        {/* Left Arrow */}
-        <button 
-          onClick={() => shiftView(-2)}
-          disabled={viewStartISO <= todayISO}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-        </button>
-
-        {/* Dates Grid */}
-        <div className="grid flex-1 grid-cols-7 gap-2">
-          {visibleDates.map((item) => {
-            const isSelected = item.iso === selectedDateISO;
-
-            return (
-              <button
-                key={item.iso}
-                onClick={() => handleDateClick(item.iso, item.isDisabled)}
-                disabled={item.isDisabled}
-                className={`
-                  group flex flex-col items-center justify-center rounded-lg border py-2 transition-all duration-200
-                  ${item.isDisabled 
-                    ? "cursor-not-allowed opacity-40 border-gray-100 bg-gray-50 text-gray-400" 
-                    : "hover:border-blue-500 hover:shadow-md cursor-pointer border-gray-200 bg-white text-gray-700"}
-                  ${isSelected && !item.isDisabled
-                    ? "!border-slate-900 !bg-slate-900 !text-white shadow-lg scale-105" 
-                    : ""}
-                `}
-              >
-                {/* Day Name */}
-                <span className={`text-[10px] font-bold uppercase mb-0.5 ${!isSelected && !item.isDisabled && item.isWeekend ? "text-red-600" : ""}`}>
-                  {item.dayName}
-                </span>
-                
-                {/* Day Number */}
-                <span className={`text-xl font-bold leading-none ${!isSelected && !item.isDisabled && item.isWeekend ? "text-red-600" : ""}`}>
-                  {item.dayNum}
-                </span>
-                
-                {/* Month Name */}
-                <span className={`text-[10px] font-bold uppercase mt-0.5 ${!isSelected && !item.isDisabled && item.isWeekend ? "text-red-600" : ""}`}>
-                  {item.monthName}
-                </span>
-              </button>
-            );
-          })}
+    <div className="w-full space-y-3">
+      {/* Header */}
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 className="text-base font-semibold tracking-tight text-[var(--color-text-light)]">
+            Booking date
+          </h3>
         </div>
 
-        {/* Right Arrow */}
-        <button 
-          onClick={() => shiftView(2)}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 transition-colors"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
-        </button>
+        <div className="inline-flex items-center rounded-xl border border-[var(--color-border-light)] bg-white px-3 py-2 text-sm shadow-sm">
+          <span className="text-[var(--color-text-light)]/65">Booking Window:  </span>
+          <span className="ml-2 font-semibold text-[var(--color-primary)]">
+             {props.maxDaysAhead} days
+          </span>
+        </div>
       </div>
 
-      <p className="mt-4 text-sm text-gray-600">
-        Selected: <span className="font-bold text-black">{selectedDateText}</span>
-      </p>
+      {/* Date Rail */}
+      <div className="rounded-2xl border border-[var(--color-border-light)] bg-white p-3 shadow-sm">
+        <div className="flex items-center gap-2 select-none">
+          {/* Left Arrow */}
+          <button
+            onClick={() => shiftView(-2)}
+            disabled={viewStartISO <= todayISO}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border-light)] bg-[var(--color-surface-light)] text-[var(--color-text-light)] transition-colors hover:bg-[var(--color-secondary)] disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="m15 18-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+
+          {/* Dates Grid */}
+          <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+            {visibleDates.map((item) => {
+              const isSelected = item.iso === selectedDateISO;
+
+              return (
+                <button
+                  key={item.iso}
+                  onClick={() => handleDateClick(item.iso, item.isDisabled)}
+                  disabled={item.isDisabled}
+                  className={[
+                    "flex min-h-[84px] flex-col items-center justify-center rounded-2xl border px-2 py-3 text-center transition-all duration-200",
+                    item.isDisabled
+                      ? "cursor-not-allowed border-[var(--color-border-light)] bg-[var(--color-surface-light)] text-[var(--color-text-light)]/30 opacity-80"
+                      : "cursor-pointer border-[var(--color-border-light)] bg-white text-[var(--color-text-light)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-soft)]/40",
+                    isSelected
+                      ? "!border-[var(--color-primary)] !bg-[var(--color-primary)] !text-white shadow-sm"
+                      : "",
+                  ].join(" ")}
+                >
+                  <span
+                    className={`text-[10px] font-semibold uppercase tracking-[0.16em] ${
+                      isSelected ? "text-white/80" : "text-[var(--color-text-light)]/50"
+                    }`}
+                  >
+                    {item.dayName}
+                  </span>
+
+                  <span className="mt-1 text-2xl font-bold leading-none">{item.dayNum}</span>
+
+                  <span
+                    className={`mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${
+                      isSelected ? "text-white/80" : "text-[var(--color-text-light)]/50"
+                    }`}
+                  >
+                    {item.monthName}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right Arrow */}
+          <button
+            onClick={() => shiftView(2)}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--color-border-light)] bg-[var(--color-surface-light)] text-[var(--color-text-light)] transition-colors hover:bg-[var(--color-secondary)]"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="m9 18 6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Selected Summary */}
+      <div className="flex items-center gap-2 text-sm text-[var(--color-text-light)]">
+        <span className="font-medium text-[var(--color-text-light)]/55">Selected:</span>
+        <span className="font-semibold text-[var(--color-primary)]">{selectedDateText}</span>
+      </div>
     </div>
   );
 }

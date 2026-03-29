@@ -336,18 +336,6 @@ async function joinWaitlist() {
   return (
     <div className="flex flex-col h-full font-sans">
       <div className="flex-1 overflow-y-auto min-h-0 pr-2 space-y-6 custom-scrollbar">
-        <div>
-          <h2 className="text-sm font-bold text-[#1F2937]">Select a time slot</h2>
-          <p className="mt-1 text-xs text-[#1F2937] opacity-70">
-            Select up to <b>{maxSelectableSlots}</b> consecutive {safeSlotMinutes}-minute slot(s).
-          </p>
-
-          {safeBufferMinutes > 0 ? (
-            <p className="mt-1 text-xs text-[#1F2937] opacity-70">
-              Buffer between bookings: <b>{safeBufferMinutes} min</b>
-            </p>
-          ) : null}
-        </div>
 
         {errorMsg && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -360,7 +348,7 @@ async function joinWaitlist() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-[250px] overflow-y-auto p-1 custom-scrollbar">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
           {sortedSlots.map((s) => {
             const disabledByBooking = s.isBooked || submitting;
             const inRange = isInSelectedRange(s);
@@ -378,17 +366,14 @@ async function joinWaitlist() {
                 disabled={isButtonDisabled}
                 onClick={() => handleSlotClick(s)}
                 className={[
-                  "rounded-xl border px-2 py-3 text-center transition-all duration-200",
-                  // DISABLED
+                  "rounded-[20px] border px-4 py-5 text-center transition-all duration-200 shadow-sm",
                   isButtonDisabled && !inRange
-                    ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed opacity-60"
+                    ? "cursor-not-allowed border-[#E5EAF1] bg-[#EEF3F8] text-[#94A3B8] opacity-70"
                     : "",
-                  // AVAILABLE
                   !isButtonDisabled && !inRange
-                    ? "bg-[#EAF6FF] text-[#003595] border-[#EAF6FF] hover:border-[#003595] hover:bg-white shadow-sm"
+                    ? "border-[#D9E5F2] bg-[#EAF2FA] text-[#334155] hover:border-[#C8D8EE] hover:bg-[#E5EEF8]"
                     : "",
-                  // SELECTED
-                  inRange ? "bg-[#003595] text-white border-[#003595] shadow-md scale-[0.98] font-bold" : "",
+                  inRange ? "border-[#003595] bg-[#003595] text-white shadow-[0_10px_24px_rgba(0,53,149,0.16)]" : "",
                 ].join(" ")}
               >
                 <div
