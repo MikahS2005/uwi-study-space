@@ -1,5 +1,4 @@
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { createSupabaseServer } from "@/lib/supabase/server";
 
 /**
  * Read global settings (single row).
@@ -12,13 +11,6 @@ export async function getSettings() {
   return data;
 }
 
-/**
- * Count how many "no_show" bookings a user has within a rolling window (N days).
- * Backed by the SQL function:
- *   public.count_user_no_shows(p_user_id uuid, p_window_days int)
- *
- * Uses service-role to ensure consistent behavior regardless of RLS.
- */
 export async function countUserNoShowsInWindow(userId: string, windowDays: number) {
   const admin = createSupabaseAdmin();
   const { data, error } = await admin.rpc("count_user_no_shows", {
@@ -30,13 +22,20 @@ export async function countUserNoShowsInWindow(userId: string, windowDays: numbe
   return Number(data ?? 0);
 }
 
-/**
- * Check if a room has any ACTIVE booking overlapping [start, end).
- * Overlap condition:
- *   existing.start < requested.end AND existing.end > requested.start
- */
-// src/lib/db/bookings.ts (inside roomHasOverlap)
-// src/lib/db/bookings.ts
+export async function getRoomCapacity(roomId: number) {
+  const admin = createSupabaseAdmin();
+
+  const { data, error } = await admin
+    .from("rooms")
+    .select("capacity")
+    .eq("id", roomId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Room not found");
+
+  return Number(data.capacity ?? 0);
+}
 
 export async function roomHasOverlap(roomId: number, startISO: string, endISO: string) {
   const admin = createSupabaseAdmin();
@@ -88,16 +87,7 @@ export async function roomHasOverlap(roomId: number, startISO: string, endISO: s
 
   return false;
 }
-// Buffered overlap:
-// Treat each existing booking as occupying [start-buffer, end+buffer).
-// Also treat the requested booking similarly (symmetry), by expanding requested range too.
-//
-// This makes the rule easy to reason about: "no two buffered intervals overlap".
 
-
-/**
- * Check if a user has any ACTIVE booking overlapping [start, end).
- */
 export async function userHasOverlap(userId: string, startISO: string, endISO: string) {
   const admin = createSupabaseAdmin();
   const { data, error } = await admin
@@ -113,10 +103,6 @@ export async function userHasOverlap(userId: string, startISO: string, endISO: s
   return (data?.length ?? 0) > 0;
 }
 
-/**
- * Count how many ACTIVE bookings a user has on a given yyyy-mm-dd (UTC day).
- * NOTE: We use UTC day boundaries to match the rest of the app's slot math.
- */
 export async function countUserBookingsForDay(userId: string, ymd: string) {
   const admin = createSupabaseAdmin();
 
@@ -135,10 +121,6 @@ export async function countUserBookingsForDay(userId: string, ymd: string) {
   return count ?? 0;
 }
 
-/**
- * Get all ACTIVE bookings for a user on a given day (UTC) so we can enforce
- * max consecutive booking hours.
- */
 export async function getUserBookingsForDay(userId: string, ymd: string) {
   const admin = createSupabaseAdmin();
 

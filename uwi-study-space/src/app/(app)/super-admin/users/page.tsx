@@ -1,4 +1,3 @@
-// src/app/(app)/super-admin/users/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -8,7 +7,14 @@ type UserRow = {
   email: string;
   fullName: string;
   uwiId: string;
-  role: "student" | "staff"| "admin" | "super_admin";
+  phone: string;
+  faculty: string;
+  academicStatus: string | null;
+  accountStatus: string | null;
+  emailVerifiedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  role: "student" | "staff" | "admin" | "super_admin";
   departmentId: number | null;
   departmentName: string | null;
   scopedDepartmentIds: number[];
@@ -20,10 +26,26 @@ type MeResponse = {
   user: null | {
     id: string;
     email: string | null;
-    role: "student" |"staff"| "admin" | "super_admin" | null;
+    role: "student" | "staff" | "admin" | "super_admin" | null;
     departmentId: number | null;
   };
 };
+
+const ROLE_PRIORITY: Record<UserRow["role"], number> = {
+  super_admin: 0,
+  admin: 1,
+  staff: 2,
+  student: 3,
+};
+
+function fmtDate(iso?: string | null) {
+  if (!iso) return "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  }).format(new Date(iso));
+}
 
 function RoleBadge({ role }: { role: UserRow["role"] }) {
   const cls =
@@ -31,11 +53,31 @@ function RoleBadge({ role }: { role: UserRow["role"] }) {
       ? "bg-purple-50 text-purple-700 ring-purple-100"
       : role === "admin"
         ? "bg-blue-50 text-blue-700 ring-blue-100"
-        : "bg-slate-50 text-slate-700 ring-slate-200";
+        : role === "staff"
+          ? "bg-amber-50 text-amber-700 ring-amber-100"
+          : "bg-slate-50 text-slate-700 ring-slate-200";
 
   return (
     <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1 ${cls}`}>
       {role === "super_admin" ? "Super Admin" : role === "admin" ? "Admin" : role === "staff" ? "Staff" : "Student"}
+    </span>
+  );
+}
+
+function StatusBadge({ value }: { value: string | null }) {
+  const text = value || "—";
+  const cls =
+    value === "active"
+      ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+      : value === "pending_verification"
+        ? "bg-amber-50 text-amber-700 ring-amber-100"
+        : value === "suspended"
+          ? "bg-rose-50 text-rose-700 ring-rose-100"
+          : "bg-slate-50 text-slate-700 ring-slate-200";
+
+  return (
+    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1 ${cls}`}>
+      {text}
     </span>
   );
 }
@@ -56,7 +98,6 @@ function ScopeModal({
   const [selected, setSelected] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // When user changes, preload current scopes
   useEffect(() => {
     if (!user) return;
     setSelected(user.scopedDepartmentIds ?? []);
@@ -144,7 +185,6 @@ function ScopeModal({
 }
 
 export default function SuperAdminUsersPage() {
-  // ✅ Hooks must be INSIDE the component body
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [busyScopes, setBusyScopes] = useState(false);
 
@@ -153,24 +193,20 @@ export default function SuperAdminUsersPage() {
   const [q, setQ] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | UserRow["role"]>("all");
 
-  // Used to disable “dangerous” actions on your own account
   const [myId, setMyId] = useState<string | null>(null);
 
   const [scopeModalOpen, setScopeModalOpen] = useState(false);
   const [scopeUser, setScopeUser] = useState<UserRow | null>(null);
 
   async function refresh() {
-    // 1) Who am I? (for self-protection)
     const meRes = await fetch("/api/me");
     const meJson = (await meRes.json().catch(() => null)) as MeResponse | null;
     setMyId(meJson?.user?.id ?? null);
 
-    // 2) Users list
     const r = await fetch("/api/super-admin/users/list");
     const j = await r.json().catch(() => ({}));
     setUsers(j.users ?? []);
 
-    // 3) Departments list
     const d = await fetch("/api/departments");
     const dj = await d.json().catch(() => ({}));
     setDepartments(dj.departments ?? []);
@@ -183,16 +219,32 @@ export default function SuperAdminUsersPage() {
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
 
-    return users.filter((u) => {
-      if (roleFilter !== "all" && u.role !== roleFilter) return false;
-      if (!needle) return true;
+    return users
+      .filter((u) => {
+        if (roleFilter !== "all" && u.role !== roleFilter) return false;
+        if (!needle) return true;
 
-      const hay = [u.fullName ?? "", u.email ?? "", u.uwiId ?? "", u.departmentName ?? ""]
-        .join(" ")
-        .toLowerCase();
+        const hay = [
+          u.fullName ?? "",
+          u.email ?? "",
+          u.uwiId ?? "",
+          u.phone ?? "",
+          u.faculty ?? "",
+          u.academicStatus ?? "",
+          u.accountStatus ?? "",
+          u.departmentName ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
 
-      return hay.includes(needle);
-    });
+        return hay.includes(needle);
+      })
+      .sort((a, b) => {
+        const byRole = ROLE_PRIORITY[a.role] - ROLE_PRIORITY[b.role];
+        if (byRole !== 0) return byRole;
+
+        return (a.fullName || a.email || "").localeCompare(b.fullName || b.email || "");
+      });
   }, [users, q, roleFilter]);
 
   async function updateRole(targetUserId: string, newRole: UserRow["role"]) {
@@ -244,7 +296,9 @@ export default function SuperAdminUsersPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold text-slate-900">Users</h1>
-          <p className="mt-1 text-sm text-slate-600">Promote/demote roles and assign department scopes to admins.</p>
+          <p className="mt-1 text-sm text-slate-600">
+            Manage roles, profile visibility, and department scopes.
+          </p>
         </div>
 
         <div className="rounded-full bg-slate-50 px-3 py-1 text-xs text-slate-700 ring-1 ring-slate-200">
@@ -252,13 +306,12 @@ export default function SuperAdminUsersPage() {
         </div>
       </div>
 
-      {/* Controls */}
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 sm:max-w-xl">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by email, name, or student ID..."
+            placeholder="Search by name, email, ID, phone, faculty..."
             className="w-full bg-transparent text-sm outline-none"
           />
         </div>
@@ -266,22 +319,23 @@ export default function SuperAdminUsersPage() {
         <select
           className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm sm:w-44"
           value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value as any)}
+          onChange={(e) => setRoleFilter(e.target.value as "all" | UserRow["role"])}
         >
           <option value="all">All Roles</option>
           <option value="student">Student</option>
-          <option value="Staff">Staff</option>
+          <option value="staff">Staff</option>
           <option value="admin">Admin</option>
           <option value="super_admin">Super Admin</option>
         </select>
       </div>
 
-      {/* Table */}
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
         <div className="grid grid-cols-12 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">
-          <div className="col-span-5">User</div>
-          <div className="col-span-2">Role</div>
-          <div className="col-span-3">Departments (Scope)</div>
+          <div className="col-span-3">User</div>
+          <div className="col-span-2">Academic</div>
+          <div className="col-span-2">Account</div>
+          <div className="col-span-1">Role</div>
+          <div className="col-span-2">Departments (Scope)</div>
           <div className="col-span-2 text-right">Actions</div>
         </div>
 
@@ -290,12 +344,10 @@ export default function SuperAdminUsersPage() {
             const isMe = myId != null && u.id === myId;
 
             return (
-              <div key={u.id} className="grid grid-cols-12 items-center gap-2 px-4 py-3">
-                <div className="col-span-5">
+              <div key={u.id} className="grid grid-cols-12 items-start gap-2 px-4 py-3">
+                <div className="col-span-3">
                   <div className="flex items-center gap-2">
                     <div className="text-sm font-semibold text-slate-900">{u.fullName || "—"}</div>
-
-                    {/* ✅ Small “You” tag to make it obvious */}
                     {isMe && (
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 ring-1 ring-slate-200">
                         You
@@ -305,13 +357,26 @@ export default function SuperAdminUsersPage() {
 
                   <div className="text-xs text-slate-600">{u.email}</div>
                   <div className="text-xs text-slate-500">ID: {u.uwiId || "—"}</div>
+                  <div className="text-xs text-slate-500">Phone: {u.phone || "—"}</div>
                 </div>
 
-                <div className="col-span-2">
+                <div className="col-span-2 text-xs text-slate-600">
+                  <div>{u.faculty || "—"}</div>
+                  <div>{u.academicStatus || "—"}</div>
+                  <div>{u.departmentName || "—"}</div>
+                </div>
+
+                <div className="col-span-2 text-xs text-slate-600">
+                  <div><StatusBadge value={u.accountStatus} /></div>
+                  <div className="mt-2">Verified: {u.emailVerifiedAt ? fmtDate(u.emailVerifiedAt) : "No"}</div>
+                  <div>Created: {fmtDate(u.createdAt)}</div>
+                </div>
+
+                <div className="col-span-1">
                   <RoleBadge role={u.role} />
                 </div>
 
-                <div className="col-span-3">
+                <div className="col-span-2">
                   {u.role === "admin" ? (
                     <div className="flex flex-wrap gap-2">
                       {(u.scopedDepartmentIds ?? []).length === 0 ? (
@@ -335,8 +400,8 @@ export default function SuperAdminUsersPage() {
                   )}
                 </div>
 
-                <div className="col-span-2 flex justify-end gap-2">
-                  {u.role === "student" && (
+                <div className="col-span-2 flex flex-wrap justify-end gap-2">
+                  {(u.role === "student" || u.role === "staff") && (
                     <button
                       onClick={() => updateRole(u.id, "admin")}
                       disabled={busyUserId === u.id || busyScopes || isMe}
@@ -347,16 +412,6 @@ export default function SuperAdminUsersPage() {
                     </button>
                   )}
 
-                  {u.role === "staff" && (
-                    <button
-                      onClick={() => updateRole(u.id, "admin")}
-                      disabled={busyUserId === u.id || busyScopes || isMe}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                      title={isMe ? "Action disabled on your own account" : undefined}
-                    >
-                      {busyUserId === u.id ? "Working..." : "Make Admin"}
-                    </button>
-                  )}
                   {u.role === "admin" && (
                     <>
                       <button
@@ -381,21 +436,21 @@ export default function SuperAdminUsersPage() {
                       </button>
 
                       <button
+                        onClick={() => updateRole(u.id, "staff")}
+                        disabled={busyUserId === u.id || busyScopes || isMe}
+                        className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+                        title={isMe ? "Action disabled on your own account" : undefined}
+                      >
+                        {busyUserId === u.id ? "Working..." : "Demote to Staff"}
+                      </button>
+
+                      <button
                         onClick={() => updateRole(u.id, "student")}
                         disabled={busyUserId === u.id || busyScopes || isMe}
                         className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
                         title={isMe ? "Action disabled on your own account" : undefined}
                       >
-                        {busyUserId === u.id ? "Working..." : "Demote"}
-                      </button>
-
-                      <button
-                        onClick={() => updateRole(u.id, "staff")}
-                        disabled={busyUserId === u.id || busyScopes || isMe}
-                        className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
-                        title={isMe ? "Action disabled on your own account" : undefined}
-                      >
-                        {busyUserId === u.id ? "Working..." : "Demote to Staff"}
+                        {busyUserId === u.id ? "Working..." : "Demote to Student"}
                       </button>
                     </>
                   )}

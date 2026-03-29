@@ -20,7 +20,7 @@ import { writeAuditLog } from "@/lib/audit/write";
 
 type Body = {
   targetUserId: string; // uuid
-  newRole: "student" | "admin" | "super_admin";
+  newRole: "student" |"staff"| "admin" | "super_admin";
 };
 
 export async function POST(req: Request) {
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
    * - Leaving them behind is confusing and can create future policy bugs
    *   if someone accidentally treats “has scopes” as “is admin”.
    */
-  if (newRole === "student") {
+  if (newRole === "student" || newRole === "staff") {
     const { error: delScopeErr } = await admin
       .from("admin_scopes")
       .delete()
