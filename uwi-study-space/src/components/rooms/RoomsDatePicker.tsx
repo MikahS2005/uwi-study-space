@@ -5,9 +5,28 @@ import { useMemo, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 // --- Helper Functions ---
-function getTodayISO() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
-function parseISO(ymd: string) { const [y, m, d] = ymd.split("-").map(Number); return new Date(y, m - 1, d); }
-function addDays(baseDate: Date, days: number) { const d = new Date(baseDate); d.setDate(d.getDate() + days); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+
+function getTodayISO() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function parseISO(ymd: string) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function addDays(baseDate: Date, days: number) {
+  const d = new Date(baseDate);
+  d.setDate(d.getDate() + days);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 export default function RoomsDatePicker(props: { maxDaysAhead: number }) {
   const router = useRouter();
@@ -26,13 +45,17 @@ export default function RoomsDatePicker(props: { maxDaysAhead: number }) {
   const [viewStartISO, setViewStartISO] = useState(selectedDateISO);
 
   useEffect(() => {
-    const selected = parseISO(selectedDateISO); const view = parseISO(viewStartISO);
+    const selected = parseISO(selectedDateISO);
+    const view = parseISO(viewStartISO);
     const diff = (selected.getTime() - view.getTime()) / (1000 * 3600 * 24);
-    if (diff < 0 || diff > 6) setViewStartISO(selectedDateISO);
+    if (diff < 0 || diff > 6) {
+      setViewStartISO(selectedDateISO);
+    }
   }, [selectedDateISO, viewStartISO]);
 
   const visibleDates = useMemo(() => {
-    const start = parseISO(viewStartISO); const days = [];
+    const start = parseISO(viewStartISO);
+    const days = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
@@ -47,6 +70,7 @@ export default function RoomsDatePicker(props: { maxDaysAhead: number }) {
 
       const isWeekend = d.getDay() === 0 || d.getDay() === 6;
       const isDisabled = iso > maxDateISO || isWeekend;
+
       days.push({ iso, dayName, dayNum, monthName, isWeekend, isDisabled });
     }
     return days;
@@ -78,7 +102,13 @@ export default function RoomsDatePicker(props: { maxDaysAhead: number }) {
     }
   }
 
-  const selectedDateText = parseISO(selectedDateISO).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const selectedDateObj = parseISO(selectedDateISO);
+  const selectedDateText = selectedDateObj.toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div className="w-full space-y-3">
