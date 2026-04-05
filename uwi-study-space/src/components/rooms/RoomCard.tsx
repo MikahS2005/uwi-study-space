@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
-
+import { useMemo, useState, useTransition } from "react";
+import { toggleFavoriteAction } from "@/lib/actions/favourites"; 
 const DEFAULT_IMAGE = "/ajl_normal.jpg";
 
 type Tone = "primary" | "amber" | "green" | "red";
@@ -23,11 +23,32 @@ export default function RoomCard(props: {
   room: any;
   preserve: any;
   status?: RoomCardStatus;
+  isFavorited: boolean;
 }) {
   const r = props.room;
   const roomId = typeof r.id === "number" ? r.id : Number(r.id);
   const selectedDate = props.preserve?.date as string;
 
+  // --- Favorites Logic ---
+  const [favorited, setFavorited] = useState(props.isFavorited);
+  const [isPending, startTransition] = useTransition();
+
+  function handleToggleFavorite(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setFavorited((prev) => !prev); // Optimistic
+
+    startTransition(async () => {
+      try {
+        await toggleFavoriteAction(roomId);
+      } catch (err) {
+        setFavorited((prev) => !prev); // Revert
+        console.error("Failed to toggle favorite", err);
+      }
+    });
+  }
+
+  // Build booking link
   const qs = useMemo(() => {
     const q = new URLSearchParams();
 
@@ -41,10 +62,7 @@ export default function RoomCard(props: {
     return q.toString();
   }, [props.preserve, selectedDate, roomId]);
 
-  const deptName = Array.isArray(r.department)
-    ? r.department[0]?.name ?? "—"
-    : r.department?.name ?? "—";
-
+  const deptName = Array.isArray(r.department) ? r.department[0]?.name ?? "—" : r.department?.name ?? "—";
   const bufferMinutes = Number(r.buffer_minutes ?? 0);
 
   const amenities = Array.isArray(r.amenities) ? r.amenities.slice(0, 4) : [];
@@ -136,6 +154,7 @@ export default function RoomCard(props: {
           </div>
         ) : null}
 
+        {/* 'Now' badge */}
         {nowBadge ? (
           <div className="absolute right-4 top-4 z-10">
             <span
@@ -152,16 +171,38 @@ export default function RoomCard(props: {
 
       {/* Body */}
       <div className="p-5">
-        <div className="mb-3">
+        {/* ROOM NAME AND FAVORITE BUTTON */}
+        <div className="mb-3 flex items-start justify-between gap-4">
           <h2 className="text-[1.35rem] font-bold leading-tight tracking-tight text-[var(--color-text-light)]">
             {r.name}
           </h2>
-
-          <p className="mt-2 text-sm text-[var(--color-text-light)]/78">
-            {r.building}
-            {r.floor ? ` • Floor ${r.floor}` : ""}
-          </p>
+          
+          <button
+            onClick={handleToggleFavorite}
+            disabled={isPending}
+            className="flex shrink-0 items-center justify-center rounded-full p-1 transition hover:scale-110 active:scale-95"
+            title={favorited ? "Remove from favorites" : "Add to favorites"}
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill={favorited ? "#ef4444" : "none"} // Solid Red if favorited
+              stroke={favorited ? "#ef4444" : "var(--color-border-dark)"}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="transition-colors"
+            >
+              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+            </svg>
+          </button>
         </div>
+
+        <p className="mb-4 text-sm text-[var(--color-text-light)]/78">
+          {r.building}
+          {r.floor ? ` • Floor ${r.floor}` : ""}
+        </p>
 
         {/* Primary room facts */}
         <div className="mb-4 flex flex-wrap gap-2">
