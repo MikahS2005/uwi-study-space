@@ -335,14 +335,18 @@ export default function ReportsClient({ mode }: { mode: Mode }) {
           </div>
         ) : data ? (
           <div className="mt-5 space-y-6">
-            
-           <div className="mt-5 space-y-6">
+            <div>
   {/* PRIMARY KPI GRID */}
   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
     <StatCard 
       label="Bookings (Total)" value={data.bookings.total} icon={<BookOpen size={20}/>}
       subtext={`Scope rooms: ${data.scope.allowedRoomCount ?? 'All'}`}
       borderColor="bg-blue-600" color="text-blue-600" bgColor="bg-blue-50"
+    />
+    <StatCard 
+      label="Waitlist (Total)" value={data.waitlist.total} icon={<Clock size={20}/>}
+      subtext={`Range: ${data.range.from} → ${data.range.to}`}
+      borderColor="bg-indigo-500" color="text-indigo-600" bgColor="bg-indigo-50"
     />
     <StatCard 
       label="Waitlist (Total)" value={data.waitlist.total} icon={<Clock size={20}/>}
