@@ -253,7 +253,7 @@ export default function SuperAdminSettingsPage() {
           />
         </Field>
 
-        <Field label="Max days ahead" hint="How far into the future a user can book.">
+   {/*     <Field label="Max days ahead" hint="How far into the future a user can book.">
           <input
             type="number"
             min={0}
@@ -262,7 +262,7 @@ export default function SuperAdminSettingsPage() {
             onChange={(e) => setForm((p) => ({ ...p, max_days_ahead: Number(e.target.value) }))}
             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
           />
-        </Field>
+        </Field> */}
 
         <Field label="Waitlist offer expiry (minutes)" hint="How long a user has to accept an offered slot.">
           <input

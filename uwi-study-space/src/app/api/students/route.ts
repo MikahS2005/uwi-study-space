@@ -1,4 +1,3 @@
-// src/app/api/admin/students/route.ts
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
@@ -29,6 +28,7 @@ export async function GET(req: Request) {
   const me = Array.isArray(meRows) ? meRows[0] : null;
   const role = (me?.role ?? null) as Role | null;
 
+  // admin-only endpoint
   if (role !== "admin" && role !== "super_admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

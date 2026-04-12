@@ -5,16 +5,17 @@ import { getSettings } from "@/lib/db/settings";
 import { adminHasRoomAccess } from "@/lib/db/adminScopes";
 import { sendWaitlistOffer } from "@/lib/email/sendWaitlistOffer";
 import { formatTtDateTimeLabel } from "@/lib/email/bookingEmailHelpers";
-import { getPositiveRouteId, invalidIdResponse } from "@/lib/api/routeParams";
+import { invalidIdResponse } from "@/lib/api/routeParams";
 
 type Role = "student" | "staff" | "admin" | "super_admin";
 
-export async function POST(
-  _: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const id = await getPositiveRouteId(params);
-  if (id === null) return invalidIdResponse("id");
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => null);
+  const id = Number(body?.waitlistId);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return invalidIdResponse("waitlistId");
+  }
 
   const supabase = await createSupabaseServer();
   const admin = createSupabaseAdmin();
@@ -54,7 +55,10 @@ export async function POST(
 
   const s = String(w.status).toLowerCase();
   if (s !== "waiting") {
-    return NextResponse.json({ error: "Only waiting entries can be offered." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Only waiting entries can be offered." },
+      { status: 400 }
+    );
   }
 
   const settings = await getSettings();
@@ -67,7 +71,10 @@ export async function POST(
     .eq("id", id);
 
   if (upErr) {
-    return NextResponse.json({ error: "Update failed", detail: upErr.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Update failed", detail: upErr.message },
+      { status: 500 }
+    );
   }
 
   try {
@@ -87,15 +94,8 @@ export async function POST(
     const profile = profileRes.data;
     const room = roomRes.data;
 
-    console.log("[admin.waitlist.offer] profile:", profile);
-    console.log("[admin.waitlist.offer] room:", room);
-
-    if (!profile?.email) {
-      console.warn("[admin.waitlist.offer] No recipient email found");
-    } else if (!room?.name) {
-      console.warn("[admin.waitlist.offer] No room name found");
-    } else {
-      const emailResult = await sendWaitlistOffer({
+    if (profile?.email && room?.name) {
+      await sendWaitlistOffer({
         to: profile.email,
         recipientName: profile.full_name,
         roomName: room.name,
@@ -104,8 +104,6 @@ export async function POST(
         endLabel: formatTtDateTimeLabel(w.end_time),
         expiresLabel: formatTtDateTimeLabel(expiresAt),
       });
-
-      console.log("[admin.waitlist.offer] emailResult:", emailResult);
     }
   } catch (err) {
     console.error("[admin.waitlist.offer] waitlist offer email failed:", err);

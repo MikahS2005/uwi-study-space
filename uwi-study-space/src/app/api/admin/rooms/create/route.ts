@@ -27,6 +27,7 @@ type CreateRoomBody = {
   floor?: unknown;
   capacity?: unknown;
   amenities?: unknown;
+  imageUrls?: unknown;
   bufferMinutes?: unknown;
   hours?: unknown; // array of 7 DayHours
 };
@@ -87,6 +88,14 @@ export async function POST(req: Request) {
         .filter(Boolean)
     : [];
 
+  const imageUrls = Array.isArray(body?.imageUrls)
+    ? body!.imageUrls
+        .filter((x) => typeof x === "string")
+        .map((s: string) => s.trim())
+        .filter(Boolean)
+        .slice(0, 1)
+    : [];
+
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
   if (!building) return NextResponse.json({ error: "Building is required" }, { status: 400 });
   if (!Number.isFinite(capacity) || capacity <= 0) {
@@ -94,6 +103,7 @@ export async function POST(req: Request) {
   }
 
   const uniqueAmenities = Array.from(new Set(amenities));
+  const uniqueImages = Array.from(new Set(imageUrls));
 
   // 4) Scope enforcement for admins (super_admin bypass)
   if (role !== "super_admin") {
@@ -123,6 +133,7 @@ export async function POST(req: Request) {
       floor,
       capacity,
       amenities: uniqueAmenities,
+      image_url: uniqueImages.length ? uniqueImages : null,
       is_active: true,
     })
     .select("id")
@@ -146,6 +157,7 @@ export async function POST(req: Request) {
       floor,
       capacity,
       amenities: uniqueAmenities,
+      imageUrls: uniqueImages,
     },
   }).catch(() => {});
 

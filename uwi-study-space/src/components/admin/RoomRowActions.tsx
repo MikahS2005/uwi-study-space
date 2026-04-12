@@ -64,6 +64,11 @@ export function RoomRowActions({ room }: { room: RoomRow }) {
           floor: room.floor ?? null,
           capacity: room.capacity,
           amenities: room.amenities ?? [],
+          image_url: Array.isArray(room.image_url)
+            ? room.image_url
+            : room.image_url
+              ? [room.image_url]
+              : [],
           is_active: room.is_active,
         }}
         onSaved={() => router.refresh()}

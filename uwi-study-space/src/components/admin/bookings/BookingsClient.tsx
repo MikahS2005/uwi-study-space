@@ -900,167 +900,178 @@ function selectAdminAttendeeResult(index: number, row: any) {
           </table>
         </div>
       )}
-
-      {openDetails && activeRow ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
-          <div className="w-full max-w-3xl rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-200">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">Booking Details</div>
-                <div className="text-xs text-slate-500">ID: {activeRow.id}</div>
-              </div>
-
-              <button
-                onClick={() => {
-                  setOpenDetails(false);
-                  setActiveRow(null);
-                }}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-              >
-                ✕
-              </button>
-            </div>
-
-            {(() => {
-              const u = displayBookedUser(activeRow);
-              const c = displayCreator(activeRow);
-              const attendees = displayAttendees(activeRow);
-
-              return (
-                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-                    <div className="text-xs font-medium text-slate-600">When (TT)</div>
-                    <div className="mt-1 text-sm text-slate-900">{fmtTtDateTime(activeRow.start_time)}</div>
-                    <div className="text-xs text-slate-500">
-                      {fmtTtTime(activeRow.start_time)} – {fmtTtTime(activeRow.end_time)}
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-                    <div className="text-xs font-medium text-slate-600">Room</div>
-                    <div className="mt-1 text-sm text-slate-900">
-                      {activeRow.rooms?.name ?? `Room #${activeRow.room_id}`}
-                    </div>
-                    <div className="text-xs text-slate-500">{String(activeRow.rooms?.building ?? "")}</div>
-                  </div>
-
-                  <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-                    <div className="text-xs font-medium text-slate-600">Booked For</div>
-                    <div className="mt-1 text-sm text-slate-900">{u.primary}</div>
-                    <div className="text-xs text-slate-500">UWI ID: {u.uwiId}</div>
-                    <div className="text-xs text-slate-500">Email: {u.email}</div>
-                    <div className="text-xs text-slate-500">Phone: {u.phone}</div>
-                    <div className="text-xs text-slate-500">Faculty: {u.faculty}</div>
-                    <div className="text-xs text-slate-500">Status: {u.academicStatus}</div>
-                    <div className="text-xs text-slate-500">Attendees: {u.attendeeCount}</div>
-                  </div>
-
-                  <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-                    <div className="text-xs font-medium text-slate-600">Created</div>
-                    <div className="mt-1 text-sm text-slate-900">{c.primary}</div>
-                    <div className="text-xs text-slate-500">{c.secondary}</div>
-                    <div className="text-xs text-slate-500">Created at: {fmtDateOnly(activeRow.created_at)}</div>
-                  </div>
-
-                  <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-                    <div className="text-xs font-medium text-slate-600">Status</div>
-                    <div className="mt-1">
-                      <span
-                        className={[
-                          "inline-flex items-center rounded-full px-2 py-1 text-xs ring-1",
-                          statusPill(activeRow.status),
-                        ].join(" ")}
-                      >
-                        {activeRow.status}
-                      </span>
-                    </div>
-                    <div className="mt-2 text-xs text-slate-500">
-                      Source: {activeRow.booking_source === "internal" ? "Internal" : "External"}
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-                    <div className="text-xs font-medium text-slate-600">Purpose</div>
-                    <div className="mt-1 text-sm text-slate-900">{(activeRow.purpose ?? "").trim() || "—"}</div>
-                  </div>
-
-                  <div className="sm:col-span-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-  <div className="text-xs font-medium text-slate-600">Attendees</div>
-
-  {attendees.length === 0 ? (
-    <div className="mt-2 text-sm text-slate-500">No attendee rows stored for this booking.</div>
-  ) : (
-    <div className="mt-3 space-y-2">
-      {attendees.map((attendee) => (
-        <div
-          key={attendee.id}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-3"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm font-medium text-slate-900">
-              {attendee.full_name || "Unnamed attendee"}
-            </div>
-
-            <span
-              className={`inline-flex rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${
-                attendee.attendee_type === "primary"
-                  ? "bg-blue-50 text-blue-700 ring-blue-100"
-                  : "bg-slate-100 text-slate-700 ring-slate-200"
-              }`}
-            >
-              {attendee.attendee_type === "primary" ? "Primary" : "Additional"}
-            </span>
+{openDetails && activeRow ? (
+  <div className="fixed inset-0 z-50 bg-black/40 p-3 sm:p-6">
+    <div className="mx-auto flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-slate-200">
+      {/* Header */}
+      <div className="shrink-0 border-b border-slate-200 px-5 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-900">Booking Details</div>
+            <div className="text-xs text-slate-500">ID: {activeRow.id}</div>
           </div>
 
-          <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-slate-500 sm:grid-cols-2">
-            <div>Email: {attendee.email || "—"}</div>
-            <div>Phone: {attendee.phone || "—"}</div>
-            <div>UWI ID: {attendee.uwi_id || "—"}</div>
-            <div>Faculty: {attendee.faculty || "—"}</div>
-            <div>Status: {attendee.academic_status || "—"}</div>
-            <div>Linked user: {attendee.profile_user_id ? "Yes" : "No"}</div>
-          </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-                </div>
-              );
-            })()}
-
-            <div className="mt-4 flex justify-end gap-2">
-              {String(activeRow.status).toLowerCase() === "active" ? (
-                <>
-                  <button
-                    onClick={() => markNoShow(activeRow)}
-                    className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100"
-                  >
-                    Mark No-Show
-                  </button>
-                  <button
-                    onClick={() => openCancelModal(activeRow)}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    Cancel Booking
-                  </button>
-                </>
-              ) : null}
-
-              <button
-                onClick={() => {
-                  setOpenDetails(false);
-                  setActiveRow(null);
-                }}
-                className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-              >
-                Close
-              </button>
-            </div>
-          </div>
+          <button
+            onClick={() => {
+              setOpenDetails(false);
+              setActiveRow(null);
+            }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            ✕
+          </button>
         </div>
-      ) : null}
+      </div>
 
+      {/* Scrollable content */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        {(() => {
+          const u = displayBookedUser(activeRow);
+          const c = displayCreator(activeRow);
+          const attendees = displayAttendees(activeRow);
+
+          return (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                <div className="text-xs font-medium text-slate-600">When (TT)</div>
+                <div className="mt-1 text-sm text-slate-900">{fmtTtDateTime(activeRow.start_time)}</div>
+                <div className="text-xs text-slate-500">
+                  {fmtTtTime(activeRow.start_time)} – {fmtTtTime(activeRow.end_time)}
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                <div className="text-xs font-medium text-slate-600">Room</div>
+                <div className="mt-1 text-sm text-slate-900">
+                  {activeRow.rooms?.name ?? `Room #${activeRow.room_id}`}
+                </div>
+                <div className="text-xs text-slate-500">{String(activeRow.rooms?.building ?? "")}</div>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                <div className="text-xs font-medium text-slate-600">Booked For</div>
+                <div className="mt-1 text-sm text-slate-900">{u.primary}</div>
+                <div className="text-xs text-slate-500">UWI ID: {u.uwiId}</div>
+                <div className="text-xs text-slate-500">Email: {u.email}</div>
+                <div className="text-xs text-slate-500">Phone: {u.phone}</div>
+                <div className="text-xs text-slate-500">Faculty: {u.faculty}</div>
+                <div className="text-xs text-slate-500">Status: {u.academicStatus}</div>
+                <div className="text-xs text-slate-500">Attendees: {u.attendeeCount}</div>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                <div className="text-xs font-medium text-slate-600">Created</div>
+                <div className="mt-1 text-sm text-slate-900">{c.primary}</div>
+                <div className="text-xs text-slate-500">{c.secondary}</div>
+                <div className="text-xs text-slate-500">Created at: {fmtDateOnly(activeRow.created_at)}</div>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                <div className="text-xs font-medium text-slate-600">Status</div>
+                <div className="mt-1">
+                  <span
+                    className={[
+                      "inline-flex items-center rounded-full px-2 py-1 text-xs ring-1",
+                      statusPill(activeRow.status),
+                    ].join(" ")}
+                  >
+                    {activeRow.status}
+                  </span>
+                </div>
+                <div className="mt-2 text-xs text-slate-500">
+                  Source: {activeRow.booking_source === "internal" ? "Internal" : "External"}
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                <div className="text-xs font-medium text-slate-600">Purpose</div>
+                <div className="mt-1 text-sm text-slate-900">
+                  {(activeRow.purpose ?? "").trim() || "—"}
+                </div>
+              </div>
+
+              <div className="sm:col-span-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                <div className="text-xs font-medium text-slate-600">Attendees</div>
+
+                {attendees.length === 0 ? (
+                  <div className="mt-2 text-sm text-slate-500">
+                    No attendee rows stored for this booking.
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {attendees.map((attendee) => (
+                      <div
+                        key={attendee.id}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-3"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-sm font-medium text-slate-900">
+                            {attendee.full_name || "Unnamed attendee"}
+                          </div>
+
+                          <span
+                            className={`inline-flex rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${
+                              attendee.attendee_type === "primary"
+                                ? "bg-blue-50 text-blue-700 ring-blue-100"
+                                : "bg-slate-100 text-slate-700 ring-slate-200"
+                            }`}
+                          >
+                            {attendee.attendee_type === "primary" ? "Primary" : "Additional"}
+                          </span>
+                        </div>
+
+                        <div className="mt-2 grid grid-cols-1 gap-1 text-xs text-slate-500 sm:grid-cols-2">
+                          <div>Email: {attendee.email || "—"}</div>
+                          <div>Phone: {attendee.phone || "—"}</div>
+                          <div>UWI ID: {attendee.uwi_id || "—"}</div>
+                          <div>Faculty: {attendee.faculty || "—"}</div>
+                          <div>Status: {attendee.academic_status || "—"}</div>
+                          <div>Linked user: {attendee.profile_user_id ? "Yes" : "No"}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Footer */}
+      <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-4">
+        <div className="flex flex-wrap justify-end gap-2">
+          {String(activeRow.status).toLowerCase() === "active" ? (
+            <>
+              <button
+                onClick={() => markNoShow(activeRow)}
+                className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100"
+              >
+                Mark No-Show
+              </button>
+              <button
+                onClick={() => openCancelModal(activeRow)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel Booking
+              </button>
+            </>
+          ) : null}
+
+          <button
+            onClick={() => {
+              setOpenDetails(false);
+              setActiveRow(null);
+            }}
+            className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+) : null}
       {openCancel && cancelTarget ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
           <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-200">

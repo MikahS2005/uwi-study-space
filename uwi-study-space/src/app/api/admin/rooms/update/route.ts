@@ -27,6 +27,7 @@ type UpdateRoomBody = {
   floor?: unknown; // string | null
   capacity?: unknown;
   amenities?: unknown; // string[]
+  imageUrls?: unknown; // string[]
 };
 
 export async function POST(req: Request) {
@@ -92,6 +93,14 @@ export async function POST(req: Request) {
         .filter(Boolean)
     : [];
 
+  const imageUrls = Array.isArray(body?.imageUrls)
+    ? body!.imageUrls
+        .filter((x) => typeof x === "string")
+        .map((s: string) => s.trim())
+        .filter(Boolean)
+        .slice(0, 1)
+    : [];
+
   // Server-side required field guards
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
   if (!building) return NextResponse.json({ error: "Building is required" }, { status: 400 });
@@ -101,6 +110,7 @@ export async function POST(req: Request) {
 
   // De-dupe amenities (keeps DB consistent)
   const uniqueAmenities = Array.from(new Set(amenities));
+  const uniqueImages = Array.from(new Set(imageUrls));
 
   // ---------------------------------------------------------------------------
   // 4) Scope check for admins (super_admin bypass)
@@ -133,6 +143,7 @@ export async function POST(req: Request) {
       floor,
       capacity,
       amenities: uniqueAmenities,
+      image_url: uniqueImages.length ? uniqueImages : null,
     })
     .eq("id", roomId)
     .select("id")
@@ -155,7 +166,7 @@ export async function POST(req: Request) {
     targetId: roomId,
     meta: {
       via: role,
-      fields: ["name", "building", "floor", "capacity", "amenities"],
+      fields: ["name", "building", "floor", "capacity", "amenities", "image_url"],
     },
   }).catch(() => {});
 
