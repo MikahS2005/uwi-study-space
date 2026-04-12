@@ -18,6 +18,7 @@ type RawRoomRow = {
   floor: string | null;
   capacity: number;
   amenities: string[];
+  image_url: string[] | null;
   is_active?: boolean;
   department_id?: number;
 
@@ -77,7 +78,7 @@ export async function getRoomsForRoomsManagement(opts: {
   const base = supabase
     .from("rooms")
     .select(
-      "id, name, building, floor, capacity, amenities, is_active, department_id, department:departments(name)",
+      "id, name, building, floor, capacity, amenities, image_url, is_active, department_id, department:departments(name)",
     );
 
   // ---------------------------------------------------------------------------
@@ -145,7 +146,9 @@ export async function getRoomById(roomId: number): Promise<RoomRow | null> {
 
   const { data, error } = await supabase
     .from("rooms")
-    .select("id, name, building, floor, capacity, amenities, department:departments(name)")
+    .select(
+      "id, name, building, floor, capacity, amenities, image_url, department:departments(name)",
+    )
     .eq("id", roomId)
     .maybeSingle();
 

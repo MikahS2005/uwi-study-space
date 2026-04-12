@@ -184,7 +184,7 @@ useEffect(() => {
       setMemberLoading((prev) => ({ ...prev, [index]: true }));
 
       try {
-        const res = await fetch(`/api/students/search?q=${encodeURIComponent(term)}`);
+        const res = await fetch(`/api/students?q=${encodeURIComponent(term)}`);
         const data = await res.json().catch(() => ({}));
 
         setMemberResults((prev) => ({

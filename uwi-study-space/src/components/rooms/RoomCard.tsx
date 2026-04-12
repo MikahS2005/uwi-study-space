@@ -46,6 +46,7 @@ export default function RoomCard(props: {
     : r.department?.name ?? "—";
 
   const bufferMinutes = Number(r.buffer_minutes ?? 0);
+  const primaryImage = Array.isArray(r.image_url) ? r.image_url[0] : r.image_url;
 
   const amenities = Array.isArray(r.amenities) ? r.amenities.slice(0, 4) : [];
 
@@ -104,7 +105,7 @@ export default function RoomCard(props: {
       {/* Image */}
       <div className="relative h-52 overflow-hidden bg-[var(--color-surface-light)]">
         <img
-          src={r.image_url || DEFAULT_IMAGE}
+          src={primaryImage || DEFAULT_IMAGE}
           alt={r.name}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
           onError={(e) => {
@@ -183,7 +184,7 @@ export default function RoomCard(props: {
         </div>
 
         {/* Amenities */}
-        <div className="mb-5 flex min-h-[56px] flex-wrap gap-2">
+        <div className="mb-5 flex flex-wrap gap-2">
           {amenities.length > 0 ? (
             amenities.map((a: string) => (
               <span

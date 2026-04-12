@@ -23,6 +23,7 @@ export type EditableRoom = {
   floor: string | null;
   capacity: number;
   amenities: string[];
+  image_url: string[] | null;
   is_active?: boolean;
 };
 
@@ -41,6 +42,9 @@ type BlackoutRow = {
 };
 
 const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MAX_IMAGES = 1;
+const MAX_BYTES = 5 * 1024 * 1024;
+const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 // Convert "HH:MM" -> minutes since midnight
 function hhmmToMinutes(hhmm: string) {
@@ -77,6 +81,12 @@ export function RoomEditModal(props: {
   const [floor, setFloor] = useState(room.floor ?? "");
   const [capacity, setCapacity] = useState(String(room.capacity));
   const [amenitiesText, setAmenitiesText] = useState((room.amenities ?? []).join(", "));
+  const [imageUrls, setImageUrls] = useState<string[]>(
+    Array.isArray(room.image_url) ? room.image_url : [],
+  );
+  const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
 
   // === Room Rules state ===
   const [rulesBusy, setRulesBusy] = useState(false);
@@ -110,6 +120,10 @@ export function RoomEditModal(props: {
     setFloor(room.floor ?? "");
     setCapacity(String(room.capacity));
     setAmenitiesText((room.amenities ?? []).join(", "));
+    setImageUrls(Array.isArray(room.image_url) ? room.image_url : []);
+    setPendingFiles(null);
+    setUploadBusy(false);
+    setUploadMsg(null);
 
     // Reset rules UI state
     setRulesBusy(false);
@@ -193,6 +207,93 @@ export function RoomEditModal(props: {
     };
   }, [name, building, floor, capacity, amenitiesText]);
 
+  async function uploadSelectedImages() {
+    if (!pendingFiles || pendingFiles.length === 0) {
+      setUploadMsg("Choose image files to upload.");
+      return;
+    }
+
+    const files = Array.from(pendingFiles);
+
+    if (imageUrls.length + files.length > MAX_IMAGES) {
+      setUploadMsg(`You can only have ${MAX_IMAGES} image per room.`);
+      return;
+    }
+
+    for (const f of files) {
+      if (!ALLOWED_TYPES.has(f.type)) {
+        setUploadMsg("Only jpg, png, or webp files are allowed.");
+        return;
+      }
+      if (f.size > MAX_BYTES) {
+        setUploadMsg("Each image must be 5MB or less.");
+        return;
+      }
+    }
+
+    try {
+      setUploadBusy(true);
+      setUploadMsg(null);
+
+      const uploaded: string[] = [];
+
+      for (const f of files) {
+        const form = new FormData();
+        form.append("file", f);
+
+        const res = await fetch("/api/admin/rooms/upload-image", {
+          method: "POST",
+          body: form,
+        });
+
+        const payload = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          throw new Error(payload?.error ?? "Upload failed");
+        }
+
+        if (typeof payload?.url !== "string" || payload.url.length === 0) {
+          throw new Error("Upload failed to return a URL");
+        }
+
+        uploaded.push(payload.url);
+      }
+
+      setImageUrls((prev) => [...prev, ...uploaded].slice(0, MAX_IMAGES));
+      setPendingFiles(null);
+      setUploadMsg("Image uploaded.");
+    } catch (e: any) {
+      setUploadMsg(e?.message ?? "Upload failed.");
+    } finally {
+      setUploadBusy(false);
+    }
+  }
+
+  async function deleteImage(url: string) {
+    try {
+      setUploadBusy(true);
+      setUploadMsg(null);
+
+      const res = await fetch("/api/admin/rooms/delete-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(payload?.error ?? "Delete failed");
+      }
+
+      setImageUrls((prev) => prev.filter((x) => x !== url));
+      setUploadMsg("Image removed.");
+    } catch (e: any) {
+      setUploadMsg(e?.message ?? "Delete failed.");
+    } finally {
+      setUploadBusy(false);
+    }
+  }
+
   async function onSave() {
     if (!parsed.ok) {
       setErrorMsg(parsed.message);
@@ -213,6 +314,7 @@ export function RoomEditModal(props: {
           floor: parsed.floor,
           capacity: parsed.capacity,
           amenities: parsed.amenities,
+          imageUrls: imageUrls.length ? imageUrls : [],
         }),
       });
 
@@ -390,7 +492,7 @@ export function RoomEditModal(props: {
         type="button"
         aria-label="Close"
         className="fixed inset-0 bg-black/30"
-        onClick={() => !busy && !rulesBusy && onClose()}
+        onClick={() => !busy && !rulesBusy && !uploadBusy && onClose()}
       />
 
       {/* Layout wrapper: NO vertical centering (this is key). */}
@@ -410,7 +512,7 @@ export function RoomEditModal(props: {
               <button
                 type="button"
                 className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                disabled={busy || rulesBusy}
+                disabled={busy || rulesBusy || uploadBusy}
                 onClick={onClose}
               >
                 Close
@@ -486,6 +588,56 @@ export function RoomEditModal(props: {
                   placeholder="e.g., Whiteboard, Projector, AC"
                 />
               </label>
+
+              <div className="rounded-2xl border border-slate-200 p-3">
+                <div className="text-sm font-medium text-slate-800">Room image (max 1)</div>
+                <p className="mt-1 text-xs text-slate-600">JPG, PNG, or WebP up to 5MB each.</p>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={uploadBusy || imageUrls.length >= MAX_IMAGES}
+                    onChange={(e) => setPendingFiles(e.target.files)}
+                    className="text-sm"
+                  />
+
+                  <button
+                    type="button"
+                    className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                    disabled={uploadBusy || !pendingFiles || pendingFiles.length === 0}
+                    onClick={uploadSelectedImages}
+                  >
+                    {uploadBusy ? "Uploading..." : "Upload"}
+                  </button>
+                </div>
+
+                {uploadMsg && (
+                  <div className="mt-2 text-xs text-slate-600" aria-live="polite">
+                    {uploadMsg}
+                  </div>
+                )}
+
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {imageUrls.length === 0 ? (
+                    <div className="text-xs text-slate-500">No images uploaded yet.</div>
+                  ) : (
+                    imageUrls.map((url) => (
+                      <div key={url} className="overflow-hidden rounded-xl border border-slate-200">
+                        <img src={url} alt="Room" className="h-28 w-full object-cover" />
+                        <button
+                          type="button"
+                          className="w-full border-t border-slate-200 px-3 py-2 text-xs text-rose-700 hover:bg-rose-50"
+                          disabled={uploadBusy}
+                          onClick={() => deleteImage(url)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* === Room Rules === */}
@@ -728,7 +880,7 @@ export function RoomEditModal(props: {
             <button
               type="button"
               className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-              disabled={busy || rulesBusy}
+              disabled={busy || rulesBusy || uploadBusy}
               onClick={onClose}
             >
               Cancel
@@ -737,7 +889,7 @@ export function RoomEditModal(props: {
             <button
               type="button"
               className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-              disabled={busy || rulesBusy || !parsed.ok}
+              disabled={busy || rulesBusy || uploadBusy || !parsed.ok}
               onClick={onSave}
             >
               {busy ? "Saving..." : "Save Changes"}

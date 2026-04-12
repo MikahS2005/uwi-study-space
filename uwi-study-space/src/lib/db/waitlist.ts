@@ -22,24 +22,29 @@ export async function joinWaitlist(params: {
   roomId: number;
   startISO: string;
   endISO: string;
+  attendeeCount: number;
 }) {
   const supabase = await createSupabaseServer();
   const admin = createSupabaseAdmin();
 
-  // 1) Auth
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
   if (!user) return { ok: false as const, message: "Unauthorized" };
 
-  // 2) Insert (service role avoids RLS issues, but we’re still enforcing auth here)
-  // Prevent duplicates for same user/slot/room if you want.
+  const attendeeCount = Number(params.attendeeCount);
+  if (!Number.isInteger(attendeeCount) || attendeeCount < 1) {
+    return { ok: false as const, message: "Attendee count must be at least 1." };
+  }
+
   const { data, error } = await admin
     .from("waitlist")
     .insert({
       room_id: params.roomId,
       start_time: params.startISO,
       end_time: params.endISO,
+      attendee_count: attendeeCount,
       user_id: user.id,
       status: "waiting",
     })
@@ -49,7 +54,6 @@ export async function joinWaitlist(params: {
   if (error) return { ok: false as const, message: error.message };
   return { ok: true as const, id: Number(data.id) };
 }
-
 /**
  * Admin offers a waitlist entry:
  * - sets status=offered
@@ -119,7 +123,7 @@ export async function acceptWaitlistOffer(params: { waitlistId: number; purpose?
   // 2) Load waitlist row (service role so we can read it reliably)
   const { data: w, error: wErr } = await admin
     .from("waitlist")
-    .select("id, room_id, start_time, end_time, user_id, status, offer_expires_at")
+    .select("id, room_id, start_time, end_time, user_id, status, offer_expires_at, attendee_count")
     .eq("id", params.waitlistId)
     .single();
 
@@ -143,13 +147,14 @@ export async function acceptWaitlistOffer(params: { waitlistId: number; purpose?
 
   // 6) Validate booking rules (re-uses your central validator)
   // NOTE: this automatically checks overlaps and opening hours etc.
-  const v = await validateBookingOrThrow({
-    roomId: Number(w.room_id),
-    startISO: String(w.start_time),
-    endISO: String(w.end_time),
-    bookedForUserId: user.id,
-    isStudentSelfBooking: true,
-  });
+const v = await validateBookingOrThrow({
+  roomId: Number(w.room_id),
+  startISO: String(w.start_time),
+  endISO: String(w.end_time),
+  attendeeCount: Number(w.attendee_count ?? 1),
+  bookedForUserId: user.id,
+  isStudentSelfBooking: true,
+});
 
   if (!v.ok) return { ok: false as const, message: v.message };
 

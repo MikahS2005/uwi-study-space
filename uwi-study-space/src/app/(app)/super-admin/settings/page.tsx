@@ -26,11 +26,35 @@ type SettingsRow = {
 /* ─────────────────────────────────────────────────────────────
    Shared primitives
 ───────────────────────────────────────────────────────────── */
-function Spinner({ light = false, size = 14 }: { light?: boolean; size?: number }) {
+function Spinner({
+  light = false,
+  size = 14,
+}: {
+  light?: boolean;
+  size?: number;
+}) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className="animate-spin shrink-0" aria-hidden="true">
-      <circle cx="12" cy="12" r="10" stroke={light ? "rgba(255,255,255,0.25)" : "rgba(0,53,149,0.15)"} strokeWidth="3" />
-      <path d="M12 2a10 10 0 0 1 10 10" stroke={light ? "#fff" : "#003595"} strokeWidth="3" strokeLinecap="round" />
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      className="animate-spin shrink-0"
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke={light ? "rgba(255,255,255,0.25)" : "rgba(0,53,149,0.15)"}
+        strokeWidth="3"
+      />
+      <path
+        d="M12 2a10 10 0 0 1 10 10"
+        stroke={light ? "#fff" : "#003595"}
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -51,7 +75,11 @@ function SettingField({
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between py-4 border-b border-[#F3F4F6] last:border-0">
       <div className="flex-1 min-w-0 pr-4">
         <p className="text-sm font-semibold text-[#1F2937]">{label}</p>
-        {hint && <p className="mt-0.5 text-xs text-[#6B7280] leading-relaxed">{hint}</p>}
+        {hint && (
+          <p className="mt-0.5 text-xs text-[#6B7280] leading-relaxed">
+            {hint}
+          </p>
+        )}
       </div>
       <div className="shrink-0 sm:w-52">{children}</div>
     </div>
@@ -97,6 +125,7 @@ function Toggle({
     <label className="flex cursor-pointer items-center justify-between rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3.5 py-2.5 hover:border-[#003595]/30 transition-colors">
       <span className="text-sm font-medium text-[#1F2937]">{label}</span>
       <button
+        type="button"
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
@@ -114,12 +143,19 @@ function Toggle({
   );
 }
 
-/* Section card */
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
       <div className="px-5 py-3.5 border-b border-[#E5E7EB] bg-[#F9FAFB]">
-        <h2 className="text-xs font-bold tracking-[0.12em] uppercase text-[#374151]">{title}</h2>
+        <h2 className="text-xs font-bold tracking-[0.12em] uppercase text-[#374151]">
+          {title}
+        </h2>
       </div>
       <div className="px-5">{children}</div>
     </div>
@@ -133,7 +169,9 @@ export default function SuperAdminSettingsPage() {
   const [settings, setSettings] = useState<SettingsRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(
+    null,
+  );
 
   const defaultForm = {
     student_booking_enabled: true,
@@ -151,18 +189,29 @@ export default function SuperAdminSettingsPage() {
 
   const [form, setForm] = useState(defaultForm);
 
-  function set<K extends keyof typeof defaultForm>(key: K, val: (typeof defaultForm)[K]) {
+  function set<K extends keyof typeof defaultForm>(
+    key: K,
+    val: (typeof defaultForm)[K],
+  ) {
     setForm((p) => ({ ...p, [key]: val }));
   }
 
   async function load() {
     setLoading(true);
     setMsg(null);
+
     const r = await fetch("/api/super-admin/settings");
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { setMsg({ kind: "err", text: j.error ?? "Failed to load settings." }); setLoading(false); return; }
+
+    if (!r.ok) {
+      setMsg({ kind: "err", text: j.error ?? "Failed to load settings." });
+      setLoading(false);
+      return;
+    }
+
     const s = (j.settings ?? null) as SettingsRow | null;
     setSettings(s);
+
     if (s) {
       setForm({
         student_booking_enabled: Boolean(s.student_booking_enabled),
@@ -173,18 +222,26 @@ export default function SuperAdminSettingsPage() {
         no_show_threshold: Number(s.no_show_threshold),
         no_show_window_days: Number(s.no_show_window_days),
         no_show_ban_days: Number(s.no_show_ban_days),
-        max_booking_window_days: Number(s.max_booking_window_days ?? s.max_days_ahead ?? 7),
-        max_booking_duration_hours: Number(s.max_booking_duration_hours ?? 3),
+        max_booking_window_days: Number(
+          s.max_booking_window_days ?? s.max_days_ahead ?? 7,
+        ),
+        max_booking_duration_hours: Number(
+          s.max_booking_duration_hours ?? 3,
+        ),
         max_consecutive_hours: Number(s.max_consecutive_hours ?? 3),
       });
     }
+
     setLoading(false);
   }
 
-  useEffect(() => { load().catch(() => setLoading(false)); }, []);
+  useEffect(() => {
+    load().catch(() => setLoading(false));
+  }, []);
 
   const dirty = useMemo(() => {
     if (!settings) return false;
+
     const baseline = {
       student_booking_enabled: Boolean(settings.student_booking_enabled),
       max_bookings_per_day: Number(settings.max_bookings_per_day),
@@ -194,29 +251,41 @@ export default function SuperAdminSettingsPage() {
       no_show_threshold: Number(settings.no_show_threshold),
       no_show_window_days: Number(settings.no_show_window_days),
       no_show_ban_days: Number(settings.no_show_ban_days),
-      max_booking_window_days: Number(settings.max_booking_window_days ?? settings.max_days_ahead ?? 7),
-      max_booking_duration_hours: Number(settings.max_booking_duration_hours ?? 3),
+      max_booking_window_days: Number(
+        settings.max_booking_window_days ?? settings.max_days_ahead ?? 7,
+      ),
+      max_booking_duration_hours: Number(
+        settings.max_booking_duration_hours ?? 3,
+      ),
       max_consecutive_hours: Number(settings.max_consecutive_hours ?? 3),
     };
+
     return JSON.stringify(baseline) !== JSON.stringify(form);
   }, [settings, form]);
 
   async function save() {
     setSaving(true);
     setMsg(null);
+
     const r = await fetch("/api/super-admin/settings/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
+
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { setMsg({ kind: "err", text: j.error ?? "Failed to save." }); setSaving(false); return; }
+
+    if (!r.ok) {
+      setMsg({ kind: "err", text: j.error ?? "Failed to save." });
+      setSaving(false);
+      return;
+    }
+
     setMsg({ kind: "ok", text: "Settings saved successfully." });
     setSaving(false);
     await load();
   }
 
-  /* ── Skeleton ── */
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F9FAFB]">
@@ -232,7 +301,10 @@ export default function SuperAdminSettingsPage() {
         </div>
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8 space-y-4 animate-pulse">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-xl border border-[#E5E7EB] h-48" />
+            <div
+              key={i}
+              className="bg-white rounded-xl border border-[#E5E7EB] h-48"
+            />
           ))}
         </div>
       </div>
@@ -241,8 +313,6 @@ export default function SuperAdminSettingsPage() {
 
   return (
     <div className="min-h-screen bg-[#F9FAFB]">
-
-      {/* ── Page Banner ── */}
       <div className="bg-white border-b-2 border-[#003595]">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
           <div className="h-1 w-16 bg-[#003595] -mb-px" />
@@ -251,26 +321,45 @@ export default function SuperAdminSettingsPage() {
               <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-[#003595] mb-1.5">
                 Super Admin — Configuration
               </p>
-              <h1 style={{ fontFamily: "Georgia, serif" }} className="text-3xl sm:text-4xl font-bold text-[#1F2937]">
+              <h1
+                style={{ fontFamily: "Georgia, serif" }}
+                className="text-3xl sm:text-4xl font-bold text-[#1F2937]"
+              >
                 Settings
               </h1>
               <p className="mt-1.5 text-sm text-[#6B7280] max-w-lg">
-                Global booking rules and enforcement thresholds applied across the entire system.
+                Global booking rules and enforcement thresholds applied across
+                the entire system.
               </p>
             </div>
+
             <div className="flex flex-col items-start sm:items-end gap-2 shrink-0">
               <nav className="flex items-center gap-1.5 text-xs text-[#9CA3AF]">
                 <span>Super Admin</span>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="m9 18 6-6-6-6"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
                 <span className="font-semibold text-[#003595]">Settings</span>
               </nav>
-              {/* Save button lives here on desktop */}
+
               <button
                 onClick={save}
                 disabled={!dirty || saving}
                 className="hidden sm:inline-flex items-center gap-2 rounded-lg bg-[#003595] px-4 py-2 text-sm font-bold text-white hover:bg-[#002366] disabled:opacity-50 transition-colors"
               >
-                {saving ? <><Spinner light size={14} /> Saving…</> : "Save Settings"}
+                {saving ? (
+                  <>
+                    <Spinner light size={14} /> Saving…
+                  </>
+                ) : (
+                  "Save Settings"
+                )}
               </button>
             </div>
           </div>
@@ -278,41 +367,90 @@ export default function SuperAdminSettingsPage() {
       </div>
 
       <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-
-        {/* Status bar */}
         {msg && (
-          <div className={`flex items-start gap-2.5 rounded-xl border px-4 py-3.5 text-sm ${
-            msg.kind === "ok"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-red-200 bg-red-50 text-red-800"
-          }`}>
+          <div
+            className={`flex items-start gap-2.5 rounded-xl border px-4 py-3.5 text-sm ${
+              msg.kind === "ok"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-red-200 bg-red-50 text-red-800"
+            }`}
+          >
             {msg.kind === "ok" ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="mt-0.5 shrink-0 text-emerald-600">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                <path d="m8 12 2.5 2.5L16 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="mt-0.5 shrink-0 text-emerald-600"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+                <path
+                  d="m8 12 2.5 2.5L16 9"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="mt-0.5 shrink-0 text-red-600">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="mt-0.5 shrink-0 text-red-600"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+                <path
+                  d="M12 8v4M12 16h.01"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
               </svg>
             )}
             <p className="font-medium">{msg.text}</p>
           </div>
         )}
 
-        {/* Unsaved changes banner */}
         {dirty && (
           <div className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" className="shrink-0 text-amber-600">
-              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-              <path d="M12 9v4M12 17h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              className="shrink-0 text-amber-600"
+            >
+              <path
+                d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M12 9v4M12 17h.01"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
             </svg>
             <span className="font-medium">You have unsaved changes.</span>
           </div>
         )}
 
-        {/* ── Section 1: Access ── */}
         <Section title="Access & Availability">
           <SettingField
             label="Student self-booking"
@@ -329,83 +467,130 @@ export default function SuperAdminSettingsPage() {
             label="Slot duration (minutes)"
             hint="The length of each bookable time slot shown in the slot picker."
           >
-            <NumberInput value={form.slot_minutes} onChange={(v) => set("slot_minutes", v)} min={15} max={120} step={15} />
+            <NumberInput
+              value={form.slot_minutes}
+              onChange={(v) => set("slot_minutes", v)}
+              min={15}
+              max={120}
+              step={15}
+            />
           </SettingField>
         </Section>
 
-        {/* ── Section 2: Booking limits ── */}
         <Section title="Booking Limits">
           <SettingField
             label="Max bookings per day"
             hint="Maximum number of bookings a single student may make within one calendar day."
           >
-            <NumberInput value={form.max_bookings_per_day} onChange={(v) => set("max_bookings_per_day", v)} min={0} max={10} />
+            <NumberInput
+              value={form.max_bookings_per_day}
+              onChange={(v) => set("max_bookings_per_day", v)}
+              min={0}
+              max={10}
+            />
           </SettingField>
 
           <SettingField
             label="Max days ahead"
             hint="How many days in the future students are permitted to book."
           >
-            <NumberInput value={form.max_days_ahead} onChange={(v) => set("max_days_ahead", v)} min={0} max={30} />
+            <NumberInput
+              value={form.max_days_ahead}
+              onChange={(v) => set("max_days_ahead", v)}
+              min={0}
+              max={30}
+            />
           </SettingField>
 
           <SettingField
             label="Max booking window (days)"
             hint="Alternative advance-booking cap used by some interfaces."
           >
-            <NumberInput value={form.max_booking_window_days} onChange={(v) => set("max_booking_window_days", v)} min={0} max={30} />
+            <NumberInput
+              value={form.max_booking_window_days}
+              onChange={(v) => set("max_booking_window_days", v)}
+              min={0}
+              max={30}
+            />
           </SettingField>
 
           <SettingField
             label="Max booking duration (hours)"
             hint="Hard upper limit on how long a single booking may run."
           >
-            <NumberInput value={form.max_booking_duration_hours} onChange={(v) => set("max_booking_duration_hours", v)} min={1} max={8} />
+            <NumberInput
+              value={form.max_booking_duration_hours}
+              onChange={(v) => set("max_booking_duration_hours", v)}
+              min={1}
+              max={8}
+            />
           </SettingField>
 
           <SettingField
             label="Max consecutive hours"
             hint="Maximum number of back-to-back booking hours permitted per user."
           >
-            <NumberInput value={form.max_consecutive_hours} onChange={(v) => set("max_consecutive_hours", v)} min={1} max={8} />
+            <NumberInput
+              value={form.max_consecutive_hours}
+              onChange={(v) => set("max_consecutive_hours", v)}
+              min={1}
+              max={8}
+            />
           </SettingField>
         </Section>
 
-        {/* ── Section 3: Waitlist ── */}
         <Section title="Waitlist">
           <SettingField
             label="Offer expiry (minutes)"
             hint="Time a student has to accept a waitlist offer before it is automatically rescinded."
           >
-            <NumberInput value={form.waitlist_offer_minutes} onChange={(v) => set("waitlist_offer_minutes", v)} min={5} max={240} />
+            <NumberInput
+              value={form.waitlist_offer_minutes}
+              onChange={(v) => set("waitlist_offer_minutes", v)}
+              min={5}
+              max={240}
+            />
           </SettingField>
         </Section>
 
-        {/* ── Section 4: No-show enforcement ── */}
         <Section title="No-Show Enforcement">
           <SettingField
             label="No-show threshold"
             hint="Number of no-shows within the rolling window that triggers a temporary ban."
           >
-            <NumberInput value={form.no_show_threshold} onChange={(v) => set("no_show_threshold", v)} min={1} max={20} />
+            <NumberInput
+              value={form.no_show_threshold}
+              onChange={(v) => set("no_show_threshold", v)}
+              min={1}
+              max={20}
+            />
           </SettingField>
 
           <SettingField
             label="Rolling window (days)"
             hint="How far back the system looks when counting no-shows against the threshold."
           >
-            <NumberInput value={form.no_show_window_days} onChange={(v) => set("no_show_window_days", v)} min={1} max={365} />
+            <NumberInput
+              value={form.no_show_window_days}
+              onChange={(v) => set("no_show_window_days", v)}
+              min={1}
+              max={365}
+            />
           </SettingField>
 
           <SettingField
             label="Ban duration (days)"
             hint="Length of the booking suspension applied when a student crosses the threshold."
           >
-            <NumberInput value={form.no_show_ban_days} onChange={(v) => set("no_show_ban_days", v)} min={0} max={365} />
+            <NumberInput
+              value={form.no_show_ban_days}
+              onChange={(v) => set("no_show_ban_days", v)}
+              min={0}
+              max={365}
+            />
           </SettingField>
         </Section>
 
-        {/* ── Footer: save + last updated ── */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
           <p className="text-xs text-[#9CA3AF]">
             Last updated:{" "}
@@ -416,12 +601,19 @@ export default function SuperAdminSettingsPage() {
                 })
               : "—"}
           </p>
+
           <button
             onClick={save}
             disabled={!dirty || saving}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-[#003595] px-6 py-2.5 text-sm font-bold text-white hover:bg-[#002366] disabled:opacity-50 transition-colors"
           >
-            {saving ? <><Spinner light size={14} /> Saving…</> : "Save Settings"}
+            {saving ? (
+              <>
+                <Spinner light size={14} /> Saving…
+              </>
+            ) : (
+              "Save Settings"
+            )}
           </button>
         </div>
       </div>
