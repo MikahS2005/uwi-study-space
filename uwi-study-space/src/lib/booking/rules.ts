@@ -2,6 +2,7 @@
 import {
   countUserBookingsForDay,
   countUserNoShowsInWindow,
+  getRoomCapacity,
   getSettings,
   getUserBookingsForDay,
   roomHasOverlap,
@@ -10,17 +11,8 @@ import {
 
 import { createSupabaseServer } from "@/lib/supabase/server";
 
-/* =============================================================================
-  Timezone helpers (Trinidad / campus local)
-  - Use these everywhere in this file so "day", "DOW", "minutes" are consistent
-============================================================================= */
+const CAMPUS_TZ = "America/Port_of_Spain";
 
-const CAMPUS_TZ = "America/Port_of_Spain"; // Trinidad & Tobago (no DST)
-
-/**
- * Extract Trinidad-local YYYY-MM-DD and minutes-since-midnight and DOW (0=Sun..6=Sat)
- * from an ISO timestamp string (can be Z or -04:00; Date() normalizes).
- */
 function getTtPartsFromISO(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
@@ -60,9 +52,6 @@ function getTtPartsFromISO(iso: string) {
   return { ymd, dow, minutes };
 }
 
-/**
- * Trinidad-local "today" (YYYY-MM-DD) based on current time in campus tz.
- */
 function getTtYMDNow() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: CAMPUS_TZ,
@@ -77,17 +66,6 @@ function getTtYMDNow() {
   return `${yyyy}-${mo}-${dd}`;
 }
 
-/* =============================================================================
-  Core validation helpers
-============================================================================= */
-
-/**
- * Validate:
- * - ISO timestamps parse correctly
- * - end > start
- * - duration is in slotMinutes blocks
- * - duration does not exceed maxDurationHours
- */
 function validateSlotMinutes(
   startISO: string,
   endISO: string,
@@ -104,17 +82,14 @@ function validateSlotMinutes(
 
   const diffMin = (end.getTime() - start.getTime()) / (1000 * 60);
 
-  // must be a whole number of slots (e.g., 60/120/180)
   if (diffMin % slotMinutes !== 0) {
     return `Duration must be in ${slotMinutes}-minute blocks.`;
   }
 
-  // enforce configured maximum duration
   if (diffMin > maxDurationHours * 60) {
     return `Maximum duration is ${maxDurationHours} hour(s).`;
   }
 
-  // enforce at least one slot
   if (diffMin < slotMinutes) {
     return `Minimum duration is ${slotMinutes} minutes.`;
   }
@@ -122,18 +97,12 @@ function validateSlotMinutes(
   return null;
 }
 
-/**
- * Enforce booking window (Trinidad-local day basis):
- * - cannot book in the past (compared to TT today)
- * - cannot book more than maxDaysAhead TT-days into the future
- */
 function validateMaxDaysAhead_TT(startISO: string, maxDaysAhead: number) {
   const startParts = getTtPartsFromISO(startISO);
   if (!startParts) return "Invalid start time.";
 
   const todayYMD = getTtYMDNow();
 
-  // Compare by day using noon anchors to avoid edge cases
   const startNoon = new Date(`${startParts.ymd}T12:00:00-04:00`).getTime();
   const todayNoon = new Date(`${todayYMD}T12:00:00-04:00`).getTime();
 
@@ -145,10 +114,6 @@ function validateMaxDaysAhead_TT(startISO: string, maxDaysAhead: number) {
   return null;
 }
 
-/**
- * Expand a booking [start, end) into discrete slot start *milliseconds*.
- * This avoids fragile string equality across offsets/Z.
- */
 function expandSlotStartMs(startISO: string, endISO: string, slotMinutes: number) {
   const starts: number[] = [];
   const start = new Date(startISO);
@@ -166,10 +131,6 @@ function expandSlotStartMs(startISO: string, endISO: string, slotMinutes: number
   return starts;
 }
 
-/**
- * Determine if adding the requested slot starts would exceed max consecutive slots.
- * We compute the longest run where adjacent starts differ by exactly slotMinutes.
- */
 function exceedsMaxConsecutiveMs(
   existing: { start_time: string }[],
   requestedStartMs: number[],
@@ -178,8 +139,6 @@ function exceedsMaxConsecutiveMs(
 ) {
   const all = new Set<number>();
 
-  // Normalize existing bookings into slot start milliseconds.
-  // IMPORTANT: We assume each stored booking start_time already aligns to slot boundaries.
   for (const b of existing) {
     const ms = Date.parse(b.start_time);
     if (!Number.isNaN(ms)) all.add(ms);
@@ -188,7 +147,6 @@ function exceedsMaxConsecutiveMs(
   for (const ms of requestedStartMs) all.add(ms);
 
   const sorted = Array.from(all).sort((a, b) => a - b);
-
   if (sorted.length === 0) return false;
 
   const step = slotMinutes * 60 * 1000;
@@ -209,10 +167,6 @@ function exceedsMaxConsecutiveMs(
   return best > maxConsecutiveSlots;
 }
 
-/* =============================================================================
-  Opening-hours validation (Trinidad-local DOW + minutes)
-============================================================================= */
-
 async function validateWithinRoomHours_TT(roomId: number, startISO: string, endISO: string) {
   const supabase = await createSupabaseServer();
 
@@ -220,8 +174,6 @@ async function validateWithinRoomHours_TT(roomId: number, startISO: string, endI
   const e = getTtPartsFromISO(endISO);
 
   if (!s || !e) return "Invalid start/end time.";
-
-  // Enforce same TT-local day
   if (s.ymd !== e.ymd) return "Booking must start and end on the same day.";
 
   const { data: hours, error } = await supabase
@@ -234,7 +186,6 @@ async function validateWithinRoomHours_TT(roomId: number, startISO: string, endI
   if (error) return "Unable to check opening hours.";
   if (!hours || hours.is_closed) return "This room is closed on that day.";
 
-  // start must be >= open, end must be <= close
   if (s.minutes < hours.open_minute || e.minutes > hours.close_minute) {
     return "Selected time is outside this room’s opening hours.";
   }
@@ -242,26 +193,34 @@ async function validateWithinRoomHours_TT(roomId: number, startISO: string, endI
   return null;
 }
 
-/* =============================================================================
-  Main validator (used by BOTH student + admin routes)
-============================================================================= */
-
 export async function validateBookingOrThrow(opts: {
   roomId: number;
   startISO: string;
   endISO: string;
-  bookedForUserId: string;
+  attendeeCount: number;
+  bookedForUserId?: string | null;
   isStudentSelfBooking: boolean;
 }) {
   const settings = await getSettings();
 
-  // Gate #1: student booking toggle
+  const attendeeCount = Number(opts.attendeeCount);
+  if (!Number.isInteger(attendeeCount) || attendeeCount < 1) {
+    return { ok: false as const, message: "Attendee count must be at least 1." };
+  }
+
+  const capacity = await getRoomCapacity(opts.roomId);
+  if (attendeeCount > capacity) {
+    return {
+      ok: false as const,
+      message: `Attendee count exceeds room capacity (${capacity}).`,
+    };
+  }
+
   if (opts.isStudentSelfBooking && settings.student_booking_enabled === false) {
     return { ok: false as const, message: "Student self-booking is currently disabled." };
   }
 
-  // Gate #2: no-show restriction (student self-booking only)
-  if (opts.isStudentSelfBooking) {
+  if (opts.isStudentSelfBooking && opts.bookedForUserId) {
     const noShows = await countUserNoShowsInWindow(
       opts.bookedForUserId,
       settings.no_show_window_days,
@@ -275,7 +234,6 @@ export async function validateBookingOrThrow(opts: {
     }
   }
 
-  // Validate slot structure + max duration
   const slotErr = validateSlotMinutes(
     opts.startISO,
     opts.endISO,
@@ -284,69 +242,61 @@ export async function validateBookingOrThrow(opts: {
   );
   if (slotErr) return { ok: false as const, message: slotErr };
 
-  // Enforce booking horizon (TT-local)
   const daysErr = validateMaxDaysAhead_TT(opts.startISO, settings.max_booking_window_days);
   if (daysErr) return { ok: false as const, message: daysErr };
 
-  // Enforce opening hours (TT-local)
   const hoursErr = await validateWithinRoomHours_TT(opts.roomId, opts.startISO, opts.endISO);
   if (hoursErr) return { ok: false as const, message: hoursErr };
 
-  // Room overlap
   if (await roomHasOverlap(opts.roomId, opts.startISO, opts.endISO)) {
     return { ok: false as const, message: "That room is already booked for this time." };
   }
 
-  // User overlap
-  if (await userHasOverlap(opts.bookedForUserId, opts.startISO, opts.endISO)) {
-    return {
-      ok: false as const,
-      message: "This user already has a booking that overlaps this time.",
-    };
-  }
+  if (opts.bookedForUserId) {
+    if (await userHasOverlap(opts.bookedForUserId, opts.startISO, opts.endISO)) {
+      return {
+        ok: false as const,
+        message: "This user already has a booking that overlaps this time.",
+      };
+    }
 
-  // TT-local day (for daily limits + consecutive checks)
-  const startParts = getTtPartsFromISO(opts.startISO);
-  if (!startParts) return { ok: false as const, message: "Invalid start time." };
-  const ymdTT = startParts.ymd;
+    const startParts = getTtPartsFromISO(opts.startISO);
+    if (!startParts) return { ok: false as const, message: "Invalid start time." };
+    const ymdTT = startParts.ymd;
 
-  // Daily limit (active bookings only)
-  const count = await countUserBookingsForDay(opts.bookedForUserId, ymdTT);
-  if (count >= settings.max_bookings_per_day) {
-    return {
-      ok: false as const,
-      message: `Daily limit reached (${settings.max_bookings_per_day} booking(s) per day).`,
-    };
-  }
+    const count = await countUserBookingsForDay(opts.bookedForUserId, ymdTT);
+    if (count >= settings.max_bookings_per_day) {
+      return {
+        ok: false as const,
+        message: `Daily limit reached (${settings.max_bookings_per_day} booking(s) per day).`,
+      };
+    }
 
-  // Max consecutive slots per TT-day (active bookings only)
-  const existing = await getUserBookingsForDay(opts.bookedForUserId, ymdTT);
-
-  // Expand requested booking into slot starts (ms) to prevent bypass
-  const requestedStartsMs = expandSlotStartMs(
-    opts.startISO,
-    opts.endISO,
-    settings.slot_minutes,
-  );
-
-  // ✅ FIX #1: convert hours -> slots
-  const maxConsecutiveSlots = Math.max(
-    1,
-    Math.floor((settings.max_consecutive_hours * 60) / settings.slot_minutes),
-  );
-
-  if (
-    exceedsMaxConsecutiveMs(
-      existing,
-      requestedStartsMs,
+    const existing = await getUserBookingsForDay(opts.bookedForUserId, ymdTT);
+    const requestedStartsMs = expandSlotStartMs(
+      opts.startISO,
+      opts.endISO,
       settings.slot_minutes,
-      maxConsecutiveSlots,
-    )
-  ) {
-    return {
-      ok: false as const,
-      message: `Max consecutive booking limit is ${settings.max_consecutive_hours} hour(s).`,
-    };
+    );
+
+    const maxConsecutiveSlots = Math.max(
+      1,
+      Math.floor((settings.max_consecutive_hours * 60) / settings.slot_minutes),
+    );
+
+    if (
+      exceedsMaxConsecutiveMs(
+        existing,
+        requestedStartsMs,
+        settings.slot_minutes,
+        maxConsecutiveSlots,
+      )
+    ) {
+      return {
+        ok: false as const,
+        message: `Max consecutive booking limit is ${settings.max_consecutive_hours} hour(s).`,
+      };
+    }
   }
 
   return { ok: true as const, settings };

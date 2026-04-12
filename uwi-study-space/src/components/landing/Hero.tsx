@@ -35,7 +35,7 @@ export function Hero() {
               Get Started
             </Link>
             <Link
-              href="/staff"
+              href="/login"
               className="inline-block text-center bg-white text-primary text-xs md:text-sm font-bold uppercase tracking-wider py-3 px-6 shadow-md hover:bg-gray-50 transition-colors"
             >
               Staff Portal

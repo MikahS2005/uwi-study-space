@@ -1,14 +1,8 @@
-// src/components/rooms/Filters.tsx
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
-/**
- * Reusable filter bar.
- * - Defaults to /rooms
- * - Schedule page can pass basePath="/schedule"
- */
 export default function RoomFilters(props: { basePath?: string } = {}) {
   const basePath = props.basePath ?? "/rooms";
 
@@ -19,73 +13,189 @@ export default function RoomFilters(props: { basePath?: string } = {}) {
   const [minCapacity, setMinCapacity] = useState(sp.get("minCapacity") ?? "");
   const [amenity, setAmenity] = useState(sp.get("amenity") ?? "");
 
+  const quickAmenities = ["Whiteboard", "Projector", "AC", "TV", "Cameras"];
+
   const nextUrl = useMemo(() => {
     const params = new URLSearchParams(sp.toString());
 
-    // Overwrite only the filter keys we manage.
-    if (building) params.set("building", building);
+    if (building.trim()) params.set("building", building.trim());
     else params.delete("building");
 
-    if (minCapacity) params.set("minCapacity", minCapacity);
+    if (minCapacity.trim()) params.set("minCapacity", minCapacity.trim());
     else params.delete("minCapacity");
 
-    if (amenity) params.set("amenity", amenity);
+    if (amenity.trim()) params.set("amenity", amenity.trim());
     else params.delete("amenity");
 
-    // Reset paging or any other future keys if you add them later:
     params.delete("page");
 
     const qs = params.toString();
     return `${basePath}${qs ? `?${qs}` : ""}`;
   }, [sp, basePath, building, minCapacity, amenity]);
 
+  function handleReset() {
+    setBuilding("");
+    setMinCapacity("");
+    setAmenity("");
+    router.replace(basePath);
+  }
+
   return (
-<div className="mt-4 grid gap-3 rounded border p-4 md:grid-cols-3"> {/* Added these classes back */}
-  <div>
-    <label className="text-xs font-medium text-black uppercase tracking-wide">Building</label>
-    <input
-      className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-black outline-none"
-      placeholder="e.g. Alma Jordan Library"
-      value={building}
-      onChange={(e) => setBuilding(e.target.value)}
-    />
-  </div>
+    <section className="rounded-2xl border border-[var(--color-border-light)] bg-white p-4 shadow-sm md:p-5">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          router.replace(nextUrl);
+        }}
+        className="space-y-4"
+      >
+        {/* Top row */}
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-[var(--color-text-light)]">Filters</h2>
+            <p className="text-sm text-[var(--color-text-light)]/60">
+              Narrow rooms by location, capacity, or amenity.
+            </p>
+          </div>
 
-  <div>
-    <label className="text-xs font-medium text-black uppercase tracking-wide">Minimum Capacity</label>
-    <input
-      className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-black outline-none"
-      placeholder="e.g. 6"
-      value={minCapacity}
-      onChange={(e) => setMinCapacity(e.target.value)}
-      inputMode="numeric"
-    />
-  </div>
+          <button
+            type="button"
+            onClick={handleReset}
+            className="inline-flex w-fit items-center justify-center rounded-xl border border-[var(--color-border-light)] bg-white px-4 py-2 text-sm font-medium text-[var(--color-text-light)] transition-colors hover:bg-[var(--color-secondary)]"
+          >
+            Reset
+          </button>
+        </div>
 
-  <div>
-    <label className="text-xs font-medium text-black uppercase tracking-wide">Amenity</label>
-    <input
-      className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-black outline-none"
-      placeholder="e.g. Whiteboard"
-      value={amenity}
-      onChange={(e) => setAmenity(e.target.value)}
-    />
-  </div>
+        {/* Inputs */}
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {/* Building */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.16em] text-[var(--color-text-light)]/55">
+              Building
+            </label>
+            <div className="flex items-center rounded-xl border border-[var(--color-border-light)] bg-[var(--color-surface-light)] px-3 focus-within:border-[var(--color-primary)] focus-within:bg-white">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4 shrink-0 text-[var(--color-primary)]/55"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M3 21h18" />
+                <path d="M5 21V7l7-4 7 4v14" />
+                <path d="M9 9h.01" />
+                <path d="M9 13h.01" />
+                <path d="M9 17h.01" />
+                <path d="M15 9h.01" />
+                <path d="M15 13h.01" />
+                <path d="M15 17h.01" />
+              </svg>
+              <input
+                className="w-full bg-transparent px-3 py-2.5 text-sm text-[var(--color-text-light)] outline-none placeholder:text-[var(--color-text-light)]/35"
+                placeholder="Alma Jordan Library"
+                value={building}
+                onChange={(e) => setBuilding(e.target.value)}
+              />
+            </div>
+          </div>
 
-  <div className="md:col-span-3 flex gap-2">
-    <button
-      className="rounded bg-black px-3 py-2 text-sm text-white hover:bg-gray-800"
-      onClick={() => router.push(nextUrl)}
-    >
-      Apply
-    </button>
-    <button
-      className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-      onClick={() => router.push(basePath)}
-    >
-      Reset
-    </button>
-  </div>
-</div>
+          {/* Capacity */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.16em] text-[var(--color-text-light)]/55">
+              Minimum capacity
+            </label>
+            <div className="flex items-center rounded-xl border border-[var(--color-border-light)] bg-[var(--color-surface-light)] px-3 focus-within:border-[var(--color-primary)] focus-within:bg-white">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4 shrink-0 text-[var(--color-primary)]/55"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="8.5" cy="7" r="4" />
+                <path d="M20 8v6" />
+                <path d="M23 11h-6" />
+              </svg>
+              <input
+                className="w-full bg-transparent px-3 py-2.5 text-sm text-[var(--color-text-light)] outline-none placeholder:text-[var(--color-text-light)]/35"
+                placeholder="6"
+                value={minCapacity}
+                onChange={(e) => setMinCapacity(e.target.value)}
+                inputMode="numeric"
+              />
+            </div>
+          </div>
+
+          {/* Amenity */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium uppercase tracking-[0.16em] text-[var(--color-text-light)]/55">
+              Amenity
+            </label>
+            <div className="flex items-center rounded-xl border border-[var(--color-border-light)] bg-[var(--color-surface-light)] px-3 focus-within:border-[var(--color-primary)] focus-within:bg-white">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4 shrink-0 text-[var(--color-primary)]/55"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M20 7h-9" />
+                <path d="M14 17H5" />
+                <circle cx="17" cy="17" r="3" />
+                <circle cx="7" cy="7" r="3" />
+              </svg>
+              <input
+                className="w-full bg-transparent px-3 py-2.5 text-sm text-[var(--color-text-light)] outline-none placeholder:text-[var(--color-text-light)]/35"
+                placeholder="Whiteboard"
+                value={amenity}
+                onChange={(e) => setAmenity(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Apply button */}
+          <div className="flex items-end">
+            <button
+              type="submit"
+              className="inline-flex w-full items-center justify-center rounded-xl bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-dark)]"
+            >
+              Apply filters
+            </button>
+          </div>
+        </div>
+
+        {/* Quick amenities */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs font-medium uppercase tracking-[0.16em] text-[var(--color-text-light)]/50">
+            Quick picks
+          </span>
+
+          {quickAmenities.map((item) => {
+            const active = amenity.trim().toLowerCase() === item.toLowerCase();
+
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setAmenity(active ? "" : item)}
+                className={[
+                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                  active
+                    ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary)]"
+                    : "border-[var(--color-border-light)] bg-white text-[var(--color-text-light)]/70 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]",
+                ].join(" ")}
+              >
+                {item}
+              </button>
+            );
+          })}
+        </div>
+      </form>
+    </section>
   );
 }

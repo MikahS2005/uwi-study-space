@@ -2,6 +2,7 @@
 import UserBar from "@/components/auth/UserBar";
 import { getStudentDashboard } from "@/lib/db/studentDashboard";
 import Link from "next/link";
+import {BookOpen} from "lucide-react";
 
 export default async function DashboardPage() {
   const data = await getStudentDashboard();
@@ -47,7 +48,7 @@ export default async function DashboardPage() {
           <div className="sticky top-8 rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
                <div className="bg-[#EAF6FF] p-2 rounded-lg">
-                <span className="text-[#003595] text-lg">📖</span>
+                <span className="text-[#003595] text-lg"><BookOpen className="h-5 w-5 text-[#003595]" /></span>
                </div>
                <h2 className="text-lg font-bold text-[#1F2937]">Book a Study Room</h2>
             </div>

@@ -1,0 +1,89 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
+import Image from "next/image";
+import uwiLogo from "@/assets/uwi-logo.png";
+
+export default function DashboardPage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login"); // or /auth
+    }
+  }, [user, loading, router]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F6FAFF]">
+        <div className="w-8 h-8 border-4 border-[#2B78FF] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#F6FAFF]">
+      {/* Header */}
+      <header className="border-b border-neutral-200 bg-white">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-2">
+            <Image src={uwiLogo} alt="UWI Logo" className="w-8 h-8" />
+            <span className="font-semibold text-neutral-900">
+              Study Room Booking
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-neutral-600">
+              {user?.email}
+            </span>
+
+            <Button variant="outline" size="sm" onClick={handleLogout}>
+              <LogOut size={16} className="mr-1" />
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main */}
+      <main className="mx-auto w-full max-w-6xl px-6 py-12">
+        <h1 className="text-3xl font-semibold text-neutral-900 mb-2">
+          Welcome, Student
+        </h1>
+
+        <p className="text-neutral-600 text-lg">
+          Your study room booking dashboard will appear here.
+        </p>
+      </main>
+    </div>
+  );
+}

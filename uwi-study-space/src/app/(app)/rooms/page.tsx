@@ -42,6 +42,42 @@ function getTtYMDNow() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function addDaysYmd(ymd: string, days: number) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+function isWeekendYmd(ymd: string) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return day === 0 || day === 6;
+}
+
+function normalizeBookableDate(ymd: string, maxDaysAhead: number) {
+  const today = getTtYMDNow();
+  const max = addDaysYmd(today, maxDaysAhead);
+
+  let iso = ymd < today ? today : ymd > max ? max : ymd;
+
+  if (!isWeekendYmd(iso)) return iso;
+
+  let forward = iso;
+  while (forward <= max) {
+    if (!isWeekendYmd(forward)) return forward;
+    forward = addDaysYmd(forward, 1);
+  }
+
+  let backward = iso;
+  while (backward >= today) {
+    if (!isWeekendYmd(backward)) return backward;
+    backward = addDaysYmd(backward, -1);
+  }
+
+  return today;
+}
+
 function getTtMinutesNow() {
   // Minutes since midnight in Trinidad time
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -134,10 +170,15 @@ export default async function RoomsPage(props: {
     typeof searchParams.bookRoomId === "string" ? searchParams.bookRoomId : undefined;
   const bookRoomId = bookRoomIdRaw && /^\d+$/.test(bookRoomIdRaw) ? Number(bookRoomIdRaw) : null;
 
-  const selectedDate =
-    typeof searchParams.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.date)
-      ? searchParams.date
-      : todayISODate();
+const rawSelectedDate =
+  typeof searchParams.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.date)
+    ? searchParams.date
+    : getTtYMDNow();
+
+const selectedDate = normalizeBookableDate(
+  rawSelectedDate,
+  settingsForPicker.max_booking_window_days
+);
 
   // ---------------------------
   // 3) Booking modal DTO (for selected room only)
@@ -267,43 +308,71 @@ export default async function RoomsPage(props: {
   // Render
   // ---------------------------
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-6">
+  <section className="overflow-hidden rounded-[32px] border border-[var(--color-border-light)] p-6 shadow-[0_18px_50px_rgba(0,53,149,0.08)] md:p-8">
+    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
       <div>
-        <h1 className="text-3xl font-bold text-black tracking-tight">Browse Rooms</h1>
-        <p className="mt-2 text-sm font-medium text-gray-800">
-          Filter rooms and click <b className="text-black">Book Room</b> to reserve time.
+
+        <h1 className="text-3xl font-bold tracking-tight text-[var(--color-text-light)] md:text-4xl">
+          Browse Rooms
+        </h1>
+
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-text-light)]/72 md:text-base">
+          Discover available study rooms, compare amenities, and reserve the best space for your session.
         </p>
       </div>
-
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="mt-3 text-xs font-medium text-gray-500">
-          <RoomsDatePicker maxDaysAhead={settingsForPicker.max_booking_window_days} />
-        </div>
-      </div>
-
-      <RoomFilters />
-
-      {/* Booking modal auto-opens when bookRoomId exists */}
-      {bookingDTO ? <SlotPickerModalAutoOpen dto={bookingDTO} /> : null}
-
-      <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {rooms.map((r: any) => {
-          const rid = Number(r.id);
-          return (
-            <RoomCard
-              key={String(r.id)}
-              room={r}
-              preserve={{
-                building: building?.trim() || undefined,
-                amenity: amenity?.trim() || undefined,
-                minCapacityRaw,
-                date: selectedDate,
-              }}
-              status={Number.isFinite(rid) ? computeStatus(rid) : undefined}
-            />
-          );
-        })}
-      </div>
     </div>
+  </section>
+
+  <section className="rounded-[28px] border border-[var(--color-border-light)] bg-white p-6 shadow-[0_12px_35px_rgba(17,24,39,0.07)]">
+    <RoomsDatePicker maxDaysAhead={settingsForPicker.max_booking_window_days} />
+  </section>
+
+  <RoomFilters />
+
+  {bookingDTO ? <SlotPickerModalAutoOpen dto={bookingDTO} /> : null}
+
+  {rooms.length === 0 ? (
+    <div className="rounded-[28px] border border-dashed border-[var(--color-border-light)] bg-[var(--color-background-light)] px-6 py-12 text-center shadow-sm">
+      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-primary-soft)]">
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="h-6 w-6 text-[var(--color-primary)]"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+      </div>
+
+      <h3 className="text-lg font-bold text-[var(--color-text-light)]">No rooms matched your filters</h3>
+      <p className="mt-2 text-sm text-[var(--color-text-light)]/65">
+        Try a different building, a smaller minimum capacity, or clear the amenity field.
+      </p>
+    </div>
+  ) : (
+    <div className="mt-2 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {rooms.map((r: any) => {
+        const rid = Number(r.id);
+        return (
+          <RoomCard
+            key={String(r.id)}
+            room={r}
+            preserve={{
+              building: building?.trim() || undefined,
+              amenity: amenity?.trim() || undefined,
+              minCapacityRaw,
+              date: selectedDate,
+            }}
+            status={Number.isFinite(rid) ? computeStatus(rid) : undefined}
+          />
+        );
+      })}
+    </div>
+  )}
+</div>
   );
 }
