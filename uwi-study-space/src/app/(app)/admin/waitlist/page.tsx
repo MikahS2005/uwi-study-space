@@ -5,5 +5,9 @@
 import WaitlistPage from "@/components/admin/waitlist/WaitlistPage";
 
 export default function AdminWaitlistPage() {
-  return <WaitlistPage mode="admin" />;
+  return (
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <WaitlistPage mode="admin" />
+    </div>
+  );
 }

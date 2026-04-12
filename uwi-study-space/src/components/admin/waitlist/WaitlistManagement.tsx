@@ -25,7 +25,13 @@ type Row = {
   };
 };
 
-export default function WaitlistManagement({ mode }: { mode: Mode }) {
+export default function WaitlistManagement({
+  mode,
+  showPageHeader = true,
+}: {
+  mode: Mode;
+  showPageHeader?: boolean;
+}) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -72,12 +78,14 @@ export default function WaitlistManagement({ mode }: { mode: Mode }) {
 
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <div className="mb-4">
-        <h1 className="text-lg font-semibold text-slate-900">{title}</h1>
-        <p className="text-sm text-slate-600">
-          Offer waitlist slots to students. Students accept offers on their end.
-        </p>
-      </div>
+      {showPageHeader ? (
+        <div className="mb-4">
+          <h1 className="text-lg font-semibold text-slate-900">{title}</h1>
+          <p className="text-sm text-slate-600">
+            Offer waitlist slots to students. Students accept offers on their end.
+          </p>
+        </div>
+      ) : null}
 
       {err ? (
         <div className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700 ring-1 ring-rose-200">

@@ -194,7 +194,13 @@ function shortId(id?: string | null) {
   return `${id.slice(0, 6)}…${id.slice(-4)}`;
 }
 
-export default function BookingsClient({ mode }: { mode: Mode }) {
+export default function BookingsClient({
+  mode,
+  showPageHeader = true,
+}: {
+  mode: Mode;
+  showPageHeader?: boolean;
+}) {
   const today = useMemo(() => ymdTodayTT(), []);
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
@@ -642,15 +648,21 @@ function selectAdminAttendeeResult(index: number, row: any) {
 
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">{pageTitle}</h1>
-          <p className="text-sm text-slate-600">
-            {mode === "super_admin"
-              ? "Super admins can view and manage bookings across all departments."
-              : "Department admins can view and manage bookings for rooms in their scope."}
-          </p>
-        </div>
+      <div
+        className={`mb-5 flex flex-wrap items-start gap-3 ${
+          showPageHeader ? "justify-between" : "justify-end"
+        }`}
+      >
+        {showPageHeader ? (
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900">{pageTitle}</h1>
+            <p className="text-sm text-slate-600">
+              {mode === "super_admin"
+                ? "Super admins can view and manage bookings across all departments."
+                : "Department admins can view and manage bookings for rooms in their scope."}
+            </p>
+          </div>
+        ) : null}
 
         <button
           type="button"

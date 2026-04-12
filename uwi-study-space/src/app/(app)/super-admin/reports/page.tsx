@@ -1,5 +1,9 @@
 import ReportsPage from "@/components/admin/reports/ReportsPage";
 
 export default function SuperAdminReportsPage() {
-  return <ReportsPage mode="super_admin" />;
+  return (
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <ReportsPage mode="super_admin" />
+    </div>
+  );
 }

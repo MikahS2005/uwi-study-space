@@ -14,6 +14,15 @@ type NormalizedRoom = {
   department?: { name: string } | { name: string }[] | null;
 };
 
+const EMPTY_UTILIZATION = {
+  overallPercentage: 0,
+  totalAvailableHours: 0,
+};
+
+const EMPTY_COMPLIANCE = {
+  activeBans: 0,
+};
+
 type RawRoomJoin = NormalizedRoom | NormalizedRoom[] | null;
 
 type BookingRow = {
@@ -136,6 +145,12 @@ function emptyResponse(from: string, to: string, mode: "admin" | "super_admin", 
       cancellationRate: 0,
       noShowRate: 0,
     },
+    utilization: {
+      ...EMPTY_UTILIZATION,
+    },
+    compliance: {
+      ...EMPTY_COMPLIANCE,
+    },
     waitlist: {
       total: 0,
       byStatus: {},
@@ -153,6 +168,7 @@ function emptyResponse(from: string, to: string, mode: "admin" | "super_admin", 
 export async function GET(req: Request) {
   const supabase = await createSupabaseServer();
   const admin = createSupabaseAdmin();
+  
 
   const {
     data: { user },
@@ -186,8 +202,18 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Missing from/to (YYYY-MM-DD)" }, { status: 400 });
   }
 
-  const fromIso = new Date(`${from}T00:00:00.000Z`).toISOString();
-  const toIso = new Date(`${to}T23:59:59.999Z`).toISOString();
+  const fromDate = new Date(`${from}T00:00:00.000Z`);
+  const toDate = new Date(`${to}T23:59:59.999Z`);
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+    return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
+  }
+
+  if (fromDate.getTime() > toDate.getTime()) {
+    return NextResponse.json({ error: "Invalid range: from must be before to" }, { status: 400 });
+  }
+
+  const fromIso = fromDate.toISOString();
+  const toIso = toDate.toISOString();
 
   let allowedRoomIds: number[] | null = null;
   if (role === "admin") {
@@ -242,19 +268,29 @@ export async function GET(req: Request) {
     .gte("start_time", fromIso)
     .lte("start_time", toIso);
 
+    
+
+  const bansQuery = admin
+  .from("profiles")
+  .select("id", { count: "exact", head: true })
+  .eq("is_banned", true);
+
   if (Array.isArray(allowedRoomIds)) {
     bookingsQuery = bookingsQuery.in("room_id", allowedRoomIds);
     waitlistQuery = waitlistQuery.in("room_id", allowedRoomIds);
   }
 
-  const [{ data: bookings, error: bookingsErr }, { data: waitlist, error: waitlistErr }] =
-    await Promise.all([bookingsQuery, waitlistQuery]);
+  
+  // We add a third item to the array to catch the response from bansQuery
+  const [
+    { data: bookings, error: bookingsErr },
+    { data: waitlist, error: waitlistErr },
+    banRes,
+  ] = await Promise.all([bookingsQuery, waitlistQuery, bansQuery]);
 
+  // Now your existing error checks below this line still work perfectly:
   if (bookingsErr) {
-    return NextResponse.json(
-      { error: "Failed to load bookings", detail: bookingsErr.message },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to load bookings", detail: bookingsErr.message }, { status: 500 });
   }
 
   if (waitlistErr) {
@@ -264,15 +300,17 @@ export async function GET(req: Request) {
     );
   }
 
-const bookingRows: BookingRow[] = (bookings ?? []).map((b: any) => ({
-  id: Number(b.id),
-  status: b.status ?? null,
-  room_id: Number(b.room_id),
-  booked_for_user_id: b.booked_for_user_id ?? null,
-  start_time: String(b.start_time),
-  end_time: String(b.end_time),
-  room: normalizeRoom(b.room),
-}));
+  const activeBansCount = banRes.error ? 0 : (banRes.count ?? 0);
+
+  const bookingRows: BookingRow[] = (bookings ?? []).map((b: any) => ({
+    id: Number(b.id),
+    status: b.status ?? null,
+    room_id: Number(b.room_id),
+    booked_for_user_id: b.booked_for_user_id ?? null,
+    start_time: String(b.start_time),
+    end_time: String(b.end_time),
+    room: normalizeRoom(b.room),
+  }));
 
 const waitlistRows: WaitlistRow[] = (waitlist ?? []).map((w: any) => ({
   id: Number(w.id),
@@ -484,6 +522,127 @@ const waitlistRows: WaitlistRow[] = (waitlist ?? []).map((w: any) => ({
     .map(([hour, bookingCount]) => ({ hour, bookingCount }))
     .sort((a, b) => b.bookingCount - a.bookingCount);
 
+  const dayDiff = (new Date(to).getTime() - new Date(from).getTime()) / 864e5 + 1;
+
+  const normalizeWeekday = (value: unknown): string | null => {
+    if (typeof value === "number" && Number.isInteger(value)) {
+      const numericMap = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      return numericMap[((value % 7) + 7) % 7] ?? null;
+    }
+
+    if (typeof value !== "string") return null;
+
+    const normalized = value.trim().toLowerCase();
+    const stringMap: Record<string, string> = {
+      sun: "Sun",
+      sunday: "Sun",
+      mon: "Mon",
+      monday: "Mon",
+      tue: "Tue",
+      tues: "Tue",
+      tuesday: "Tue",
+      wed: "Wed",
+      weds: "Wed",
+      wednesday: "Wed",
+      thu: "Thu",
+      thur: "Thu",
+      thurs: "Thu",
+      thursday: "Thu",
+      fri: "Fri",
+      friday: "Fri",
+      sat: "Sat",
+      saturday: "Sat",
+    };
+
+    return stringMap[normalized] ?? null;
+  };
+
+  const parseTimeToHours = (value: unknown): number | null => {
+    if (typeof value !== "string") return null;
+
+    const trimmed = value.trim();
+    const amPmMatch = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
+    if (amPmMatch) {
+      let hours = parseInt(amPmMatch[1], 10);
+      const minutes = parseInt(amPmMatch[2] ?? "0", 10);
+      const meridiem = amPmMatch[3].toUpperCase();
+
+      if (meridiem === "PM" && hours !== 12) hours += 12;
+      if (meridiem === "AM" && hours === 12) hours = 0;
+
+      return hours + minutes / 60;
+    }
+
+    const twentyFourHourMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (twentyFourHourMatch) {
+      const hours = parseInt(twentyFourHourMatch[1], 10);
+      const minutes = parseInt(twentyFourHourMatch[2], 10);
+      return hours + minutes / 60;
+    }
+
+    return null;
+  };
+
+  const scopedRoomIds = allowedRoomIds
+    ? allowedRoomIds
+    : ((await admin.from("rooms").select("id")).data ?? []).map((room) => room.id as number);
+
+  const roomCountForMath = scopedRoomIds.length || 1;
+
+  const openingHoursRows = scopedRoomIds.length > 0
+    ? ((await admin.from("room_opening_hours").select("*").in("room_id", scopedRoomIds)).data ?? [])
+    : [];
+
+  const openingHoursByRoomAndDay = new Map<string, any>();
+  for (const row of openingHoursRows) {
+    const roomId = typeof row?.room_id === "number" ? row.room_id : Number(row?.room_id);
+    const weekday = normalizeWeekday(row?.day_of_week ?? row?.weekday ?? row?.day);
+
+    if (!Number.isFinite(roomId) || !weekday) continue;
+
+    openingHoursByRoomAndDay.set(`${roomId}-${weekday}`, row);
+  }
+
+  let totalAvailableHours = 0;
+  const rangeStart = new Date(from);
+  const rangeEnd = new Date(to);
+
+  for (let current = new Date(rangeStart); current <= rangeEnd; current.setDate(current.getDate() + 1)) {
+    const weekday = weekdayOrder[(current.getDay() + 6) % 7];
+
+    for (const roomId of scopedRoomIds) {
+      const openingHours = openingHoursByRoomAndDay.get(`${roomId}-${weekday}`);
+
+      if (!openingHours) {
+        totalAvailableHours += 12;
+        continue;
+      }
+
+      const isClosed = Boolean(openingHours.is_closed ?? openingHours.closed);
+      if (isClosed) continue;
+
+      const openTime = parseTimeToHours(
+        openingHours.open_time ?? openingHours.opening_time ?? openingHours.opens_at
+      );
+      const closeTime = parseTimeToHours(
+        openingHours.close_time ?? openingHours.closing_time ?? openingHours.closes_at
+      );
+
+      if (openTime === null || closeTime === null) {
+        totalAvailableHours += 12;
+        continue;
+      }
+
+      const duration = closeTime >= openTime
+        ? closeTime - openTime
+        : 24 - openTime + closeTime;
+
+      totalAvailableHours += Math.max(duration, 0);
+    }
+  }
+
+  const utilizationRate = totalAvailableHours > 0 ? (totalHours / totalAvailableHours) : 0;
+
   return NextResponse.json({
     range: { from, to },
     scope: {
@@ -498,6 +657,15 @@ const waitlistRows: WaitlistRow[] = (waitlist ?? []).map((w: any) => ({
       uniqueUsers,
       cancellationRate: round2(cancellationRate),
       noShowRate: round2(noShowRate),
+    },
+    utilization: {
+      ...EMPTY_UTILIZATION,
+      overallPercentage: round2(utilizationRate),
+      totalAvailableHours: Math.round(totalAvailableHours),
+    },
+    compliance: {
+      ...EMPTY_COMPLIANCE,
+      activeBans: activeBansCount,
     },
     waitlist: {
       total: waitlistTotal,
