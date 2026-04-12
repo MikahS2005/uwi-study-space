@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { BookOpen, Clock, Timer, Users, XCircle, AlertTriangle, BarChart3, TrendingUp } from "lucide-react";
+import { BookOpen, Clock, Timer, Users, XCircle, AlertTriangle, BarChart3 } from "lucide-react";
 
 const StatCard = ({ label, value, subtext, icon, color, bgColor, borderColor }: any) => (
   <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group">
