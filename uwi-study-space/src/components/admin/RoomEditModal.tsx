@@ -597,7 +597,6 @@ export function RoomEditModal(props: {
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
-                    multiple
                     disabled={uploadBusy || imageUrls.length >= MAX_IMAGES}
                     onChange={(e) => setPendingFiles(e.target.files)}
                     className="text-sm"
