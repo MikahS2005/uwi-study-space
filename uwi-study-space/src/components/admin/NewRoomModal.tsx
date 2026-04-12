@@ -262,21 +262,27 @@ export function NewRoomModal(props: {
       setUploadBusy(true);
       setUploadMsg(null);
 
-      await Promise.allSettled(
+      const results = await Promise.allSettled(
         imageUrls.map(async (url) => {
-          await fetch("/api/admin/rooms/delete-image", {
+          const res = await fetch("/api/admin/rooms/delete-image", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url }),
           });
+          if (!res.ok) throw new Error("Delete failed");
         }),
       );
-    } finally {
-      setUploadBusy(false);
+
+      if (results.some((r) => r.status === "rejected")) {
+        setUploadMsg("Some uploaded images could not be cleaned up. Please try again.");
+        return;
+      }
+
       setImageUrls([]);
       setPendingFiles(null);
-      setUploadMsg(null);
       onClose();
+    } finally {
+      setUploadBusy(false);
     }
   }
 
