@@ -4,6 +4,16 @@ const nextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  
+  experimental: {
+    serverActions: {
+      allowedOrigins: [
+        "localhost:3000", 
+        "*.app.github.dev",
+        ...(process.env.CODESPACE_NAME ? [`${process.env.CODESPACE_NAME}-3000.app.github.dev`] : [])
+      ],
+    },
+  },
 };
 
 export default nextConfig;

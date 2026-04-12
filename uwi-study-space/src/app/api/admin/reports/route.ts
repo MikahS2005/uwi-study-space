@@ -153,6 +153,7 @@ function emptyResponse(from: string, to: string, mode: "admin" | "super_admin", 
 export async function GET(req: Request) {
   const supabase = await createSupabaseServer();
   const admin = createSupabaseAdmin();
+  
 
   const {
     data: { user },
@@ -242,20 +243,30 @@ export async function GET(req: Request) {
     .gte("start_time", fromIso)
     .lte("start_time", toIso);
 
+    
+
+  const bansQuery = admin
+  .from("profiles")
+  .select("id", { count: "exact", head: true })
+  .eq("is_banned", true);
+
   if (Array.isArray(allowedRoomIds)) {
     bookingsQuery = bookingsQuery.in("room_id", allowedRoomIds);
     waitlistQuery = waitlistQuery.in("room_id", allowedRoomIds);
   }
 
-  const [{ data: bookings, error: bookingsErr }, { data: waitlist, error: waitlistErr }] =
-    await Promise.all([bookingsQuery, waitlistQuery]);
+  
+  // We add a third item to the array to catch the response from bansQuery
+const [
+  { data: bookings, error: bookingsErr }, 
+  { data: waitlist, error: waitlistErr }, 
+  banRes 
+] = await Promise.all([bookingsQuery, waitlistQuery, bansQuery]);
 
-  if (bookingsErr) {
-    return NextResponse.json(
-      { error: "Failed to load bookings", detail: bookingsErr.message },
-      { status: 500 },
-    );
-  }
+// Now your existing error checks below this line still work perfectly:
+if (bookingsErr) {
+  return NextResponse.json({ error: "Failed to load bookings", detail: bookingsErr.message }, { status: 500 });
+}
 
   if (waitlistErr) {
     return NextResponse.json(
@@ -481,8 +492,30 @@ const waitlistRows: WaitlistRow[] = (waitlist ?? []).map((w: any) => ({
     .filter((d) => d.bookingCount > 0);
 
   const busiestHours = Array.from(hourMap.entries())
-    .map(([hour, bookingCount]) => ({ hour, bookingCount }))
-    .sort((a, b) => b.bookingCount - a.bookingCount);
+  .map(([hour, bookingCount]) => ({ hour, bookingCount }))
+  .sort((a, b) => {
+    // Helper function to turn "8 AM" or "1 PM" into a sortable number (0-23)
+    const parseTime = (h: string) => {
+      const parts = h.split(' '); // Splits "11" and "AM"
+      let val = parseInt(parts[0]);
+      const ampm = parts[1];
+
+      if (ampm === 'PM' && val !== 12) val += 12;
+      if (ampm === 'AM' && val === 12) val = 0;
+      return val;
+    };
+
+    // Sort by the time value instead of the booking count
+    return parseTime(a.hour) - parseTime(b.hour);
+  });
+
+  const dayDiff = (new Date(to).getTime() - new Date(from).getTime()) / 864e5 + 1;
+
+  const roomCountForMath = allowedRoomIds ? allowedRoomIds.length : (await admin.from("rooms").select("id", { count: "exact", head: true })).count ?? 1;
+
+  const totalAvailableHours = roomCountForMath * dayDiff * 12; 
+
+  const utilizationRate = totalAvailableHours > 0 ? (totalHours / totalAvailableHours) : 0;
 
   return NextResponse.json({
     range: { from, to },
@@ -498,6 +531,13 @@ const waitlistRows: WaitlistRow[] = (waitlist ?? []).map((w: any) => ({
       uniqueUsers,
       cancellationRate: round2(cancellationRate),
       noShowRate: round2(noShowRate),
+    },
+    utilization: { 
+      overallPercentage: round2(utilizationRate), 
+      totalAvailableHours: Math.round(totalAvailableHours) 
+    },
+    compliance: { 
+      activeBans: banRes.count ?? 0 
     },
     waitlist: {
       total: waitlistTotal,
