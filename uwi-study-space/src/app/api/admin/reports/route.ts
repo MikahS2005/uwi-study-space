@@ -266,16 +266,16 @@ export async function GET(req: Request) {
 
   
   // We add a third item to the array to catch the response from bansQuery
-const [
-  { data: bookings, error: bookingsErr }, 
-  { data: waitlist, error: waitlistErr }, 
-  banRes 
-] = await Promise.all([bookingsQuery, waitlistQuery, bansQuery]);
+  const [
+    { data: bookings, error: bookingsErr },
+    { data: waitlist, error: waitlistErr },
+    banRes,
+  ] = await Promise.all([bookingsQuery, waitlistQuery, bansQuery]);
 
-// Now your existing error checks below this line still work perfectly:
-if (bookingsErr) {
-  return NextResponse.json({ error: "Failed to load bookings", detail: bookingsErr.message }, { status: 500 });
-}
+  // Now your existing error checks below this line still work perfectly:
+  if (bookingsErr) {
+    return NextResponse.json({ error: "Failed to load bookings", detail: bookingsErr.message }, { status: 500 });
+  }
 
   if (waitlistErr) {
     return NextResponse.json(
@@ -284,15 +284,22 @@ if (bookingsErr) {
     );
   }
 
-const bookingRows: BookingRow[] = (bookings ?? []).map((b: any) => ({
-  id: Number(b.id),
-  status: b.status ?? null,
-  room_id: Number(b.room_id),
-  booked_for_user_id: b.booked_for_user_id ?? null,
-  start_time: String(b.start_time),
-  end_time: String(b.end_time),
-  room: normalizeRoom(b.room),
-}));
+  if (banRes.error) {
+    return NextResponse.json(
+      { error: "Failed to load bans", detail: banRes.error.message },
+      { status: 500 },
+    );
+  }
+
+  const bookingRows: BookingRow[] = (bookings ?? []).map((b: any) => ({
+    id: Number(b.id),
+    status: b.status ?? null,
+    room_id: Number(b.room_id),
+    booked_for_user_id: b.booked_for_user_id ?? null,
+    start_time: String(b.start_time),
+    end_time: String(b.end_time),
+    room: normalizeRoom(b.room),
+  }));
 
 const waitlistRows: WaitlistRow[] = (waitlist ?? []).map((w: any) => ({
   id: Number(w.id),
