@@ -501,22 +501,8 @@ const waitlistRows: WaitlistRow[] = (waitlist ?? []).map((w: any) => ({
     .filter((d) => d.bookingCount > 0);
 
   const busiestHours = Array.from(hourMap.entries())
-  .map(([hour, bookingCount]) => ({ hour, bookingCount }))
-  .sort((a, b) => {
-    // Helper function to turn "8 AM" or "1 PM" into a sortable number (0-23)
-    const parseTime = (h: string) => {
-      const parts = h.split(' '); // Splits "11" and "AM"
-      let val = parseInt(parts[0]);
-      const ampm = parts[1];
-
-      if (ampm === 'PM' && val !== 12) val += 12;
-      if (ampm === 'AM' && val === 12) val = 0;
-      return val;
-    };
-
-    // Sort by the time value instead of the booking count
-    return parseTime(a.hour) - parseTime(b.hour);
-  });
+    .map(([hour, bookingCount]) => ({ hour, bookingCount }))
+    .sort((a, b) => b.bookingCount - a.bookingCount);
 
   const dayDiff = (new Date(to).getTime() - new Date(from).getTime()) / 864e5 + 1;
 
