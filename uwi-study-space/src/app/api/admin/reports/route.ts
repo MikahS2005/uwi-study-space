@@ -520,9 +520,122 @@ const waitlistRows: WaitlistRow[] = (waitlist ?? []).map((w: any) => ({
 
   const dayDiff = (new Date(to).getTime() - new Date(from).getTime()) / 864e5 + 1;
 
-  const roomCountForMath = allowedRoomIds ? allowedRoomIds.length : (await admin.from("rooms").select("id", { count: "exact", head: true })).count ?? 1;
+  const normalizeWeekday = (value: unknown): string | null => {
+    if (typeof value === "number" && Number.isInteger(value)) {
+      const numericMap = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      return numericMap[((value % 7) + 7) % 7] ?? null;
+    }
 
-  const totalAvailableHours = roomCountForMath * dayDiff * 12; 
+    if (typeof value !== "string") return null;
+
+    const normalized = value.trim().toLowerCase();
+    const stringMap: Record<string, string> = {
+      sun: "Sun",
+      sunday: "Sun",
+      mon: "Mon",
+      monday: "Mon",
+      tue: "Tue",
+      tues: "Tue",
+      tuesday: "Tue",
+      wed: "Wed",
+      weds: "Wed",
+      wednesday: "Wed",
+      thu: "Thu",
+      thur: "Thu",
+      thurs: "Thu",
+      thursday: "Thu",
+      fri: "Fri",
+      friday: "Fri",
+      sat: "Sat",
+      saturday: "Sat",
+    };
+
+    return stringMap[normalized] ?? null;
+  };
+
+  const parseTimeToHours = (value: unknown): number | null => {
+    if (typeof value !== "string") return null;
+
+    const trimmed = value.trim();
+    const amPmMatch = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
+    if (amPmMatch) {
+      let hours = parseInt(amPmMatch[1], 10);
+      const minutes = parseInt(amPmMatch[2] ?? "0", 10);
+      const meridiem = amPmMatch[3].toUpperCase();
+
+      if (meridiem === "PM" && hours !== 12) hours += 12;
+      if (meridiem === "AM" && hours === 12) hours = 0;
+
+      return hours + minutes / 60;
+    }
+
+    const twentyFourHourMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (twentyFourHourMatch) {
+      const hours = parseInt(twentyFourHourMatch[1], 10);
+      const minutes = parseInt(twentyFourHourMatch[2], 10);
+      return hours + minutes / 60;
+    }
+
+    return null;
+  };
+
+  const scopedRoomIds = allowedRoomIds
+    ? allowedRoomIds
+    : ((await admin.from("rooms").select("id")).data ?? []).map((room) => room.id as number);
+
+  const roomCountForMath = scopedRoomIds.length || 1;
+
+  const openingHoursRows = scopedRoomIds.length > 0
+    ? ((await admin.from("room_opening_hours").select("*").in("room_id", scopedRoomIds)).data ?? [])
+    : [];
+
+  const openingHoursByRoomAndDay = new Map<string, any>();
+  for (const row of openingHoursRows) {
+    const roomId = typeof row?.room_id === "number" ? row.room_id : Number(row?.room_id);
+    const weekday = normalizeWeekday(row?.day_of_week ?? row?.weekday ?? row?.day);
+
+    if (!Number.isFinite(roomId) || !weekday) continue;
+
+    openingHoursByRoomAndDay.set(`${roomId}-${weekday}`, row);
+  }
+
+  let totalAvailableHours = 0;
+  const rangeStart = new Date(from);
+  const rangeEnd = new Date(to);
+
+  for (let current = new Date(rangeStart); current <= rangeEnd; current.setDate(current.getDate() + 1)) {
+    const weekday = weekdayOrder[(current.getDay() + 6) % 7];
+
+    for (const roomId of scopedRoomIds) {
+      const openingHours = openingHoursByRoomAndDay.get(`${roomId}-${weekday}`);
+
+      if (!openingHours) {
+        totalAvailableHours += 12;
+        continue;
+      }
+
+      const isClosed = Boolean(openingHours.is_closed ?? openingHours.closed);
+      if (isClosed) continue;
+
+      const openTime = parseTimeToHours(
+        openingHours.open_time ?? openingHours.opening_time ?? openingHours.opens_at
+      );
+      const closeTime = parseTimeToHours(
+        openingHours.close_time ?? openingHours.closing_time ?? openingHours.closes_at
+      );
+
+      if (openTime === null || closeTime === null) {
+        totalAvailableHours += 12;
+        continue;
+      }
+
+      const duration = closeTime >= openTime
+        ? closeTime - openTime
+        : 24 - openTime + closeTime;
+
+      totalAvailableHours += Math.max(duration, 0);
+    }
+  }
 
   const utilizationRate = totalAvailableHours > 0 ? (totalHours / totalAvailableHours) : 0;
 
