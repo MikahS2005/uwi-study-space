@@ -212,7 +212,13 @@ function pieLabel({ name, percent }: { name?: string; percent?: number }) {
   return `${name ?? ""} ${(p * 100).toFixed(0)}%`;
 }
 
-export default function ReportsClient({ mode }: { mode: Mode }) {
+export default function ReportsClient({
+  mode,
+  showPageHeader = true,
+}: {
+  mode: Mode;
+  showPageHeader?: boolean;
+}) {
   const today = useMemo(() => ymdTodayTT(), []);
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
@@ -288,12 +294,14 @@ export default function ReportsClient({ mode }: { mode: Mode }) {
     <div className="space-y-4">
       <div className={sectionCardClass()}>
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">{title}</h1>
-            <p className="text-sm text-slate-600">
-              Visual summary for bookings and waitlist activity across the selected report window.
-            </p>
-          </div>
+          {showPageHeader ? (
+            <div>
+              <h1 className="text-lg font-semibold text-slate-900">{title}</h1>
+              <p className="text-sm text-slate-600">
+                Visual summary for bookings and waitlist activity across the selected report window.
+              </p>
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap items-end gap-2">
             <div>
