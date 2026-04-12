@@ -252,6 +252,34 @@ export function NewRoomModal(props: {
     }
   }
 
+  async function closeWithCleanup() {
+    if (imageUrls.length === 0) {
+      onClose();
+      return;
+    }
+
+    try {
+      setUploadBusy(true);
+      setUploadMsg(null);
+
+      await Promise.allSettled(
+        imageUrls.map(async (url) => {
+          await fetch("/api/admin/rooms/delete-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url }),
+          });
+        }),
+      );
+    } finally {
+      setUploadBusy(false);
+      setImageUrls([]);
+      setPendingFiles(null);
+      setUploadMsg(null);
+      onClose();
+    }
+  }
+
   if (!open) return null;
 
   const disableClose = busy || uploadBusy;
@@ -263,16 +291,17 @@ export function NewRoomModal(props: {
         type="button"
         aria-label="Close"
         className="absolute inset-0 bg-black/30"
-        onClick={() => !disableClose && onClose()}
+        onClick={() => !disableClose && closeWithCleanup()}
       />
 
       {/* Panel */}
-      <div className="absolute left-1/2 top-1/2 w-[92vw] max-w-xl -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-200">
+      <div className="absolute top-1/2 left-1/2 w-[92vw] max-w-xl -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-200">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold text-slate-900">Create New Room</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Department admins can only create rooms inside their allowed department scope.
+              Department admins can only create rooms inside their allowed department
+              scope.
             </p>
           </div>
 
@@ -280,7 +309,7 @@ export function NewRoomModal(props: {
             type="button"
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             disabled={disableClose}
-            onClick={onClose}
+            onClick={closeWithCleanup}
           >
             Close
           </button>
@@ -317,7 +346,8 @@ export function NewRoomModal(props: {
 
             {departments.length === 0 && !loadingDepts && (
               <span className="text-xs text-amber-700">
-                No allowed departments found for this admin. Ask a super admin to assign scopes.
+                No allowed departments found for this admin. Ask a super admin to assign
+                scopes.
               </span>
             )}
           </label>
@@ -370,7 +400,9 @@ export function NewRoomModal(props: {
           </div>
 
           <label className="grid gap-1">
-            <span className="text-sm font-medium text-slate-700">Amenities (comma-separated)</span>
+            <span className="text-sm font-medium text-slate-700">
+              Amenities (comma-separated)
+            </span>
             <input
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-slate-200"
               value={amenitiesText}
@@ -382,7 +414,9 @@ export function NewRoomModal(props: {
 
           <div className="rounded-2xl border border-slate-200 p-3">
             <div className="text-sm font-medium text-slate-800">Room image (max 1)</div>
-            <p className="mt-1 text-xs text-slate-600">JPG, PNG, or WebP up to 5MB each.</p>
+            <p className="mt-1 text-xs text-slate-600">
+              JPG, PNG, or WebP up to 5MB each.
+            </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <input
@@ -414,7 +448,10 @@ export function NewRoomModal(props: {
                 <div className="text-xs text-slate-500">No images uploaded yet.</div>
               ) : (
                 imageUrls.map((url) => (
-                  <div key={url} className="overflow-hidden rounded-xl border border-slate-200">
+                  <div
+                    key={url}
+                    className="overflow-hidden rounded-xl border border-slate-200"
+                  >
                     <img src={url} alt="Room" className="h-28 w-full object-cover" />
                     <button
                       type="button"
@@ -436,7 +473,7 @@ export function NewRoomModal(props: {
             type="button"
             className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             disabled={busy || uploadBusy}
-            onClick={onClose}
+            onClick={closeWithCleanup}
           >
             Cancel
           </button>
@@ -444,7 +481,9 @@ export function NewRoomModal(props: {
           <button
             type="button"
             className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-            disabled={busy || uploadBusy || loadingDepts || departments.length === 0 || !parsed.ok}
+            disabled={
+              busy || uploadBusy || loadingDepts || departments.length === 0 || !parsed.ok
+            }
             onClick={onCreate}
           >
             {busy ? "Creating..." : "Create Room"}
