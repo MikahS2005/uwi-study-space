@@ -14,6 +14,15 @@ type NormalizedRoom = {
   department?: { name: string } | { name: string }[] | null;
 };
 
+const EMPTY_UTILIZATION = {
+  overallPercentage: 0,
+  totalAvailableHours: 0,
+};
+
+const EMPTY_COMPLIANCE = {
+  activeBans: 0,
+};
+
 type RawRoomJoin = NormalizedRoom | NormalizedRoom[] | null;
 
 type BookingRow = {
@@ -532,12 +541,14 @@ const waitlistRows: WaitlistRow[] = (waitlist ?? []).map((w: any) => ({
       cancellationRate: round2(cancellationRate),
       noShowRate: round2(noShowRate),
     },
-    utilization: { 
-      overallPercentage: round2(utilizationRate), 
-      totalAvailableHours: Math.round(totalAvailableHours) 
+    utilization: {
+      ...EMPTY_UTILIZATION,
+      overallPercentage: round2(utilizationRate),
+      totalAvailableHours: Math.round(totalAvailableHours),
     },
-    compliance: { 
-      activeBans: banRes.count ?? 0 
+    compliance: {
+      ...EMPTY_COMPLIANCE,
+      activeBans: banRes.count ?? 0,
     },
     waitlist: {
       total: waitlistTotal,
