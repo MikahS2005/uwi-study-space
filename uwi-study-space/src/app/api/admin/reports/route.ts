@@ -145,6 +145,12 @@ function emptyResponse(from: string, to: string, mode: "admin" | "super_admin", 
       cancellationRate: 0,
       noShowRate: 0,
     },
+    utilization: {
+      ...EMPTY_UTILIZATION,
+    },
+    compliance: {
+      ...EMPTY_COMPLIANCE,
+    },
     waitlist: {
       total: 0,
       byStatus: {},
@@ -196,8 +202,18 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Missing from/to (YYYY-MM-DD)" }, { status: 400 });
   }
 
-  const fromIso = new Date(`${from}T00:00:00.000Z`).toISOString();
-  const toIso = new Date(`${to}T23:59:59.999Z`).toISOString();
+  const fromDate = new Date(`${from}T00:00:00.000Z`);
+  const toDate = new Date(`${to}T23:59:59.999Z`);
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+    return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
+  }
+
+  if (fromDate.getTime() > toDate.getTime()) {
+    return NextResponse.json({ error: "Invalid range: from must be before to" }, { status: 400 });
+  }
+
+  const fromIso = fromDate.toISOString();
+  const toIso = toDate.toISOString();
 
   let allowedRoomIds: number[] | null = null;
   if (role === "admin") {
@@ -284,12 +300,7 @@ export async function GET(req: Request) {
     );
   }
 
-  if (banRes.error) {
-    return NextResponse.json(
-      { error: "Failed to load bans", detail: banRes.error.message },
-      { status: 500 },
-    );
-  }
+  const activeBansCount = banRes.error ? 0 : (banRes.count ?? 0);
 
   const bookingRows: BookingRow[] = (bookings ?? []).map((b: any) => ({
     id: Number(b.id),
@@ -654,7 +665,7 @@ const waitlistRows: WaitlistRow[] = (waitlist ?? []).map((w: any) => ({
     },
     compliance: {
       ...EMPTY_COMPLIANCE,
-      activeBans: banRes.count ?? 0,
+      activeBans: activeBansCount,
     },
     waitlist: {
       total: waitlistTotal,
