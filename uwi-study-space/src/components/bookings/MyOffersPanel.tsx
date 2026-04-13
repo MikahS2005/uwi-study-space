@@ -113,10 +113,20 @@ export default function MyOffersPanel() {
           Loading…
         </div>
       ) : offered.length === 0 && waiting.length === 0 ? (
-        <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-200">
-          No offers or waitlist entries yet.
-        </div>
-      ) : (
+  <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-10 text-center">
+    <div className="text-4xl mb-3">🎁</div>
+    <h3 className="text-base font-semibold text-slate-900">No active offers</h3>
+    <p className="max-w-[280px] text-sm text-slate-500 mx-auto">
+      When a space becomes available or you receive a special invite, it will show up right here.
+    </p>
+    <button 
+      className="mt-4 text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors underline underline-offset-4"
+      onClick={() => load()}
+    >
+      Refresh list
+    </button>
+  </div>
+) : (
         <div className="space-y-3">
           {offered.length ? (
             <div>
