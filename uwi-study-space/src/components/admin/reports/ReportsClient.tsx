@@ -14,7 +14,36 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { BookOpen, Clock, Timer, Users, XCircle, AlertTriangle, BarChart3 } from "lucide-react";
 
+const StatCard = ({ label, value, subtext, icon, color, bgColor, borderColor }: any) => (
+  <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group">
+    {/* Colored Accent Bar */}
+    <div className={`absolute top-0 left-0 w-full h-1 ${borderColor}`} />
+
+    <div className="flex justify-between items-start">
+      <div>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</p>
+        <p className="text-3xl font-black text-slate-900 mt-1">{value}</p>
+      </div>
+      {/* Icon with soft background */}
+      <div className={`p-3 rounded-2xl ${bgColor} ${color}`}>
+        {icon}
+      </div>
+    </div>
+    
+    <p className="mt-4 text-[11px] text-slate-500 font-medium italic">
+      {subtext}
+    </p>
+  </div>
+);
+const UWI_COLORS = {
+  navy: "#003595",    // Primary / Active
+  amber: "#f59e0b",   // Demand / Offered / No-Show
+  emerald: "#10b981", // Fulfilled / Success
+  rose: "#ef4444",    // Cancelled
+  slate: "#64748b"    // Secondary / Axis
+};
 type Mode = "admin" | "super_admin";
 
 type ReportResponse = {
@@ -29,6 +58,13 @@ type ReportResponse = {
     uniqueUsers: number;
     cancellationRate: number;
     noShowRate: number;
+  };
+  utilization: {
+    overallPercentage: number;
+    totalAvailableHours: number;
+  };
+  compliance: {
+    activeBans: number;
   };
 
   waitlist: {
@@ -176,7 +212,13 @@ function pieLabel({ name, percent }: { name?: string; percent?: number }) {
   return `${name ?? ""} ${(p * 100).toFixed(0)}%`;
 }
 
-export default function ReportsClient({ mode }: { mode: Mode }) {
+export default function ReportsClient({
+  mode,
+  showPageHeader = true,
+}: {
+  mode: Mode;
+  showPageHeader?: boolean;
+}) {
   const today = useMemo(() => ymdTodayTT(), []);
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
@@ -250,140 +292,115 @@ export default function ReportsClient({ mode }: { mode: Mode }) {
 
   return (
     <div className="space-y-4">
-      <div className={sectionCardClass()}>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">{title}</h1>
-            <p className="text-sm text-slate-600">
-              Visual summary for bookings and waitlist activity across the selected report window.
-            </p>
-          </div>
+      {showPageHeader ? (
+        <div className="rounded-[28px] border border-[var(--color-border-light)] bg-white px-5 py-4 shadow-[0_12px_35px_rgba(17,24,39,0.06)] sm:px-6">
+          <h1 className="text-sm font-semibold text-[var(--color-text-light)] sm:text-base">{title}</h1>
+          <p className="mt-1 text-sm text-[var(--color-text-light)]/62">
+            Visual summary for bookings and waitlist activity across the selected report window.
+          </p>
+        </div>
+      ) : null}
 
-          <div className="flex flex-wrap items-end gap-2">
-            <div>
-              <label className="block text-xs font-medium text-slate-600">From</label>
-              <input
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="mt-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-blue-200 focus:ring-2"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-600">To</label>
-              <input
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className="mt-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-blue-200 focus:ring-2"
-              />
-            </div>
-
-            <button
-              onClick={fetchReports}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-            >
-              Apply
-            </button>
-          </div>
+      <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#E5E7EB] bg-[#F9FAFB]">
+          <h2 className="text-xs font-bold tracking-[0.12em] uppercase text-[#374151]">
+            Filter Reports
+          </h2>
         </div>
 
-        {err ? (
-          <div className="mt-4 rounded-xl bg-rose-50 p-4 text-sm text-rose-700 ring-1 ring-rose-200">
-            {err}
+        <div className="px-5 py-4 flex flex-wrap items-end gap-3">
+          <div>
+            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#9CA3AF]">
+              From
+            </label>
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-sm text-[#1F2937] outline-none transition focus:border-[#003595] focus:ring-2 focus:ring-[#003595]/10"
+            />
           </div>
-        ) : loading ? (
-          <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-200">
-            Loading…
+
+          <div>
+            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#9CA3AF]">
+              To
+            </label>
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-sm text-[#1F2937] outline-none transition focus:border-[#003595] focus:ring-2 focus:ring-[#003595]/10"
+            />
           </div>
-        ) : data ? (
-          <div className="mt-5 space-y-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
-              <div className={chartCardClass()}>
-                <div className="text-xs font-medium text-slate-600">Bookings (Total)</div>
-                <div className="mt-1 text-3xl font-semibold text-slate-900">{data.bookings.total}</div>
-                <div className="mt-2 text-xs text-slate-500">
-                  Scope rooms: {data.scope.allowedRoomCount === null ? "All" : data.scope.allowedRoomCount}
-                </div>
-              </div>
 
-              <div className={chartCardClass()}>
-                <div className="text-xs font-medium text-slate-600">Waitlist (Total)</div>
-                <div className="mt-1 text-3xl font-semibold text-slate-900">{data.waitlist.total}</div>
-                <div className="mt-2 text-xs text-slate-500">
-                  Range: {data.range.from} → {data.range.to}
-                </div>
-              </div>
+          <button
+            onClick={fetchReports}
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-[#003595] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#002366]"
+          >
+            Apply Filters
+          </button>
+        </div>
+      </div>
 
-              <div className={chartCardClass()}>
-                <div className="text-xs font-medium text-slate-600">Booked Hours</div>
-                <div className="mt-1 text-3xl font-semibold text-slate-900">
-                  {hours(data.bookings.totalHours)}
-                </div>
-                <div className="mt-2 text-xs text-slate-500">Total duration in range</div>
-              </div>
-
-              <div className={chartCardClass()}>
-                <div className="text-xs font-medium text-slate-600">Unique Users</div>
-                <div className="mt-1 text-3xl font-semibold text-slate-900">
-                  {data.bookings.uniqueUsers}
-                </div>
-                <div className="mt-2 text-xs text-slate-500">Distinct bookers in range</div>
-              </div>
-
-              <div className={chartCardClass()}>
-                <div className="text-xs font-medium text-slate-600">Cancellation Rate</div>
-                <div className="mt-1 text-3xl font-semibold text-slate-900">
-                  {pct(data.bookings.cancellationRate)}
-                </div>
-                <div className="mt-2 text-xs text-slate-500">Cancelled / total bookings</div>
-              </div>
-
-              <div className={chartCardClass()}>
-                <div className="text-xs font-medium text-slate-600">No-Show Rate</div>
-                <div className="mt-1 text-3xl font-semibold text-slate-900">
-                  {pct(data.bookings.noShowRate)}
-                </div>
-                <div className="mt-2 text-xs text-slate-500">No-shows / total bookings</div>
-              </div>
-
-              <div className={chartCardClass()}>
-                <div className="text-xs font-medium text-slate-600">Avg Booking Duration</div>
-                <div className="mt-1 text-3xl font-semibold text-slate-900">
-                  {hours(data.bookings.averageDurationHours)}
-                </div>
-                <div className="mt-2 text-xs text-slate-500">Average booking length</div>
-              </div>
-
-              <div className={chartCardClass()}>
-                <div className="text-xs font-medium text-slate-600">Waitlist Conversion</div>
-                <div className="mt-1 text-3xl font-semibold text-slate-900">
-                  {pct(data.waitlist.conversionRate)}
-                </div>
-                <div className="mt-2 text-xs text-slate-500">Fulfilled / total waitlist</div>
-              </div>
-
-              <div className={chartCardClass()}>
-                <div className="text-xs font-medium text-slate-600">Active Bookings</div>
-                <div className="mt-1 text-3xl font-semibold text-slate-900">
-                  {data.bookings.byStatus.active ?? 0}
-                </div>
-                <div className="mt-2 text-xs text-slate-500">Current active count in range</div>
-              </div>
-
-              <div className={chartCardClass()}>
-                <div className="text-xs font-medium text-slate-600">Pending Waitlist</div>
-                <div className="mt-1 text-3xl font-semibold text-slate-900">
-                  {(data.waitlist.byStatus.waiting ?? 0) + (data.waitlist.byStatus.offered ?? 0)}
-                </div>
-                <div className="mt-2 text-xs text-slate-500">Waiting + offered entries</div>
-              </div>
+      {err ? (
+        <div className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700 ring-1 ring-rose-200">
+          {err}
+        </div>
+      ) : loading ? (
+        <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-200">
+          Loading…
+        </div>
+      ) : data ? (
+        <div className="space-y-6">
+            <div>
+  {/* PRIMARY KPI GRID */}
+  <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]">
+    <StatCard 
+      label="Bookings (Total)" value={data.bookings.total} icon={<BookOpen size={20}/>}
+      subtext={`Scope rooms: ${data.scope.allowedRoomCount ?? 'All'}`}
+      borderColor="bg-blue-600" color="text-blue-600" bgColor="bg-blue-50"
+    />
+    <StatCard 
+      label="Waitlist (Total)" value={data.waitlist.total} icon={<Clock size={20}/>}
+      subtext={`Range: ${data.range.from} → ${data.range.to}`}
+      borderColor="bg-indigo-500" color="text-indigo-600" bgColor="bg-indigo-50"
+    />
+    <StatCard 
+      label="Booked Hours" value={`${data.bookings.totalHours}h`} icon={<Timer size={20}/>}
+      subtext="Total duration in range"
+      borderColor="bg-emerald-500" color="text-emerald-600" bgColor="bg-emerald-50"
+    />
+    <StatCard 
+      label="Unique Users" value={data.bookings.uniqueUsers} icon={<Users size={20}/>}
+      subtext="Distinct bookers in range"
+      borderColor="bg-sky-500" color="text-sky-600" bgColor="bg-sky-50"
+    />
+    <StatCard 
+      label="Cancellation Rate" value={pct(data.bookings.cancellationRate)} icon={<XCircle size={20}/>}
+      subtext="Cancelled / total bookings"
+      borderColor="bg-blue-600" color="text-blue-600" bgColor="bg-blue-50"
+    />
+    <StatCard 
+      label="No-Show Rate" value={pct(data.bookings.noShowRate)} icon={<AlertTriangle size={20}/>}
+      subtext="No-shows / total bookings"
+      borderColor="bg-sky-500" color="text-sky-600" bgColor="bg-sky-50"
+    />
+    <StatCard 
+      label="Active Bookings" value={data.bookings.byStatus.active ?? 0} icon={<BarChart3 size={20}/>}
+      subtext="Current active count in range"
+      borderColor="bg-blue-600" color="text-blue-600" bgColor="bg-blue-50"
+    />
+    <StatCard 
+      label="Pending Waitlist" value={(data.waitlist.byStatus.waiting ?? 0) + (data.waitlist.byStatus.offered ?? 0)} icon={<Clock size={20}/>}
+      subtext="Waiting + offered entries"
+      borderColor="bg-sky-500" color="text-sky-600" bgColor="bg-sky-50"
+    />
+  </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <div className={chartCardClass()}>
-                <div className="mb-3 text-sm font-medium text-slate-700">Bookings by Status</div>
+                <div className="mb-6 text-sm font-black text-slate-900 uppercase tracking-widest">Bookings by Status</div>
                 {bookingStatusData.length === 0 ? (
                   <EmptyChart label="Bookings" />
                 ) : (
@@ -392,24 +409,27 @@ export default function ReportsClient({ mode }: { mode: Mode }) {
                       <PieChart>
                         <Pie
                           data={bookingStatusData}
+                          innerRadius={75}  /* Thinner look */
+                          outerRadius={100}
+                          paddingAngle={5}   /* The gap between segments */
                           dataKey="value"
-                          nameKey="name"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={90}
-                          innerRadius={45}
-                          paddingAngle={2}
-                          label={pieLabel}
+                          stroke="none"
                         >
                           {bookingStatusData.map((entry, index) => (
-                            <Cell
-                              key={`booking-cell-${entry.name}`}
-                              fill={CHART_COLORS[index % CHART_COLORS.length]}
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={
+                                entry.name.includes("Active") ? UWI_COLORS.navy : 
+                                entry.name.includes("Cancelled") ? UWI_COLORS.rose : 
+                                UWI_COLORS.amber
+                              } 
                             />
                           ))}
                         </Pie>
-                        <Tooltip />
-                        <Legend />
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} 
+                        />
+                        <Legend iconType="circle" verticalAlign="bottom" height={36}/>
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -417,7 +437,7 @@ export default function ReportsClient({ mode }: { mode: Mode }) {
               </div>
 
               <div className={chartCardClass()}>
-                <div className="mb-3 text-sm font-medium text-slate-700">Waitlist by Status</div>
+                <div className="mb-6 text-sm font-black text-slate-900 uppercase tracking-widest">Waitlist by Status</div>
                 {waitlistStatusData.length === 0 ? (
                   <EmptyChart label="Waitlist" />
                 ) : (
@@ -426,24 +446,48 @@ export default function ReportsClient({ mode }: { mode: Mode }) {
                       <PieChart>
                         <Pie
                           data={waitlistStatusData}
+                          innerRadius={75}
+                          outerRadius={100}
+                          paddingAngle={5}
                           dataKey="value"
-                          nameKey="name"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={90}
-                          innerRadius={45}
-                          paddingAngle={2}
-                          label={pieLabel}
+                          stroke="none"
                         >
-                          {waitlistStatusData.map((entry, index) => (
-                            <Cell
-                              key={`waitlist-cell-${entry.name}`}
-                              fill={CHART_COLORS[index % CHART_COLORS.length]}
-                            />
-                          ))}
+                          {waitlistStatusData.map((entry: any, index: number) => {
+                            let color = UWI_COLORS.slate;
+                            if (entry.name.includes("Offered")) color = UWI_COLORS.navy;
+                            if (entry.name.includes("Waiting")) color = UWI_COLORS.emerald;
+                            if (entry.name.includes("Expired")) color = UWI_COLORS.rose;
+                            
+                            return <Cell key={`cell-${index}`} fill={color} />;
+                          })}
                         </Pie>
-                        <Tooltip />
-                        <Legend />
+                        <Tooltip 
+                          contentStyle={{ 
+                            borderRadius: '16px', 
+                            border: 'none', 
+                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            padding: '12px'
+                          }}
+                          formatter={((value: any, name: any) => {
+                            let color = UWI_COLORS.slate;
+                            if (name.includes("Offered")) color = UWI_COLORS.navy;
+                            if (name.includes("Waiting")) color = UWI_COLORS.emerald;
+                            if (name.includes("Expired")) color = UWI_COLORS.rose;
+
+                            return [
+                              <span style={{ color }}>{value} students</span>,
+                              <span style={{ color }}>{name}</span>
+                            ];
+                          }) as any}
+                        />
+                        <Legend 
+                          iconType="circle" 
+                          verticalAlign="bottom" 
+                          height={36}
+                          wrapperStyle={{ paddingTop: '20px' }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -453,20 +497,53 @@ export default function ReportsClient({ mode }: { mode: Mode }) {
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <div className={chartCardClass()}>
-                <div className="mb-3 text-sm font-medium text-slate-700">Bookings vs Waitlist Totals</div>
+                <div className="mb-6 text-sm font-black text-slate-900 uppercase tracking-widest">Bookings vs Waitlist Totals</div>
                 <div className="h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={totalsData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis allowDecimals={false} />
-                      <Tooltip />
-                      <Bar dataKey="value" radius={[10, 10, 0, 0]}>
-                        {totalsData.map((entry, index) => (
-                          <Cell
-                            key={`totals-cell-${entry.name}`}
-                            fill={CHART_COLORS[index % CHART_COLORS.length]}
-                          />
+                    <BarChart data={totalsData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+                      
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={true} horizontal={true} />
+                      
+  
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={{ stroke: '#94a3b8' }} 
+                        tickLine={{ stroke: '#94a3b8' }} 
+                        tick={{ fill: UWI_COLORS.slate, fontSize: 12, fontWeight: 700 }} 
+                        dy={10} /* Moves labels down away from the line */
+                      />
+                      
+                    
+                      <YAxis 
+                        axisLine={{ stroke: '#94a3b8' }} 
+                        tickLine={{ stroke: '#94a3b8' }} 
+                        tick={{ fill: UWI_COLORS.slate, fontSize: 12 }} 
+                        allowDecimals={false} 
+                      />
+
+                      <Tooltip 
+                        cursor={{ fill: 'rgba(241, 245, 249, 0.5)' }}
+                        contentStyle={{ 
+                          borderRadius: '16px', 
+                          border: 'none', 
+                          boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          padding: '12px'
+                        }}
+                        formatter={((value: any, name: any, props: any) => {
+                          const label = props.payload.name === "Bookings" ? "Total Bookings" : "Waitlist Entries";
+                          const barColor = props.payload.name === "Bookings" ? UWI_COLORS.navy : UWI_COLORS.amber;
+
+                          return [
+                            <span style={{ color: barColor }}>Total: {value}</span>,
+                            <span style={{ color: barColor }}>{label}</span>
+                          ];
+                        }) as any}
+                      />
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={40}>
+                        {totalsData.map((entry: any, index: number) => (
+                          <Cell key={`cell-${index}`} fill={entry.name === "Bookings" ? UWI_COLORS.navy : UWI_COLORS.amber} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -475,90 +552,191 @@ export default function ReportsClient({ mode }: { mode: Mode }) {
               </div>
 
               <div className={chartCardClass()}>
-                <div className="mb-3 text-sm font-medium text-slate-700">Status Comparison</div>
+                <div className="mb-6 text-sm font-black text-slate-900 uppercase tracking-widest">Status Comparison</div>
                 {comparisonData.length === 0 ? (
                   <EmptyChart label="Status comparison" />
                 ) : (
                   <div className="h-[280px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={comparisonData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="status" />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="bookings" name="Bookings" fill="#2563eb" radius={[8, 8, 0, 0]} />
-                        <Bar dataKey="waitlist" name="Waitlist" fill="#16a34a" radius={[8, 8, 0, 0]} />
-                      </BarChart>
+                 <BarChart data={comparisonData} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={true} horizontal={true} />
+                  <XAxis 
+                    dataKey="status" 
+                    axisLine={{ stroke: '#94a3b8' }} 
+                    tickLine={{ stroke: '#94a3b8' }} 
+                    tick={{ fill: UWI_COLORS.slate, fontSize: 11, fontWeight: 700 }} 
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={{ stroke: '#94a3b8' }} 
+                    tickLine={{ stroke: '#94a3b8' }} 
+                    tick={{ fill: UWI_COLORS.slate, fontSize: 11 }} 
+                    allowDecimals={false}
+                  />
+                  <Tooltip 
+                    cursor={{ fill: 'rgba(241, 245, 249, 0.5)' }}
+                    contentStyle={{ 
+                      borderRadius: '16px', 
+                      border: 'none', 
+                      boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      padding: '12px'
+                    }}
+                    formatter={((value: any, name: any) => {
+                      const color = name === "bookings" ? UWI_COLORS.navy : UWI_COLORS.emerald;
+                      const label = name === "bookings" ? "Confirmed Bookings" : "Waitlist Entries";
+                      return [
+                        <span style={{ color }}>{value} sessions</span>,
+                        <span style={{ color }}>{label}</span>
+                      ];
+                    }) as any}
+                  />
+                  <Legend 
+                    iconType="circle" 
+                    verticalAlign="top" 
+                    align="right" 
+                    height={36}
+                    wrapperStyle={{ paddingBottom: '20px' }}
+                  />
+                  <Bar 
+                    name="Bookings" 
+                    dataKey="bookings" 
+                    fill={UWI_COLORS.navy} 
+                    radius={[4, 4, 0, 0]} 
+                    barSize={16} 
+                  />
+                  <Bar 
+                    name="Waitlist" 
+                    dataKey="waitlist" 
+                    fill={UWI_COLORS.emerald} 
+                    radius={[4, 4, 0, 0]} 
+                    barSize={16} 
+                  />
+                </BarChart>
                     </ResponsiveContainer>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className={chartCardClass()}>
-              <div className="mb-3 text-sm font-medium text-slate-700">Quick Breakdown</div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-                {Object.entries(data.bookings.byStatus).map(([k, v], index) => (
-                  <div key={`booking-status-${k}`} className="rounded-xl bg-white px-3 py-3 ring-1 ring-slate-200">
-                    <div
-                      className="mb-2 h-2 w-full rounded-full"
-                      style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
-                    />
-                    <div className="text-xs text-slate-500">Booking · {titleCaseStatus(k)}</div>
-                    <div className="text-lg font-semibold text-slate-900">{v}</div>
-                  </div>
-                ))}
-
-                {Object.entries(data.waitlist.byStatus).map(([k, v], index) => (
-                  <div key={`waitlist-status-${k}`} className="rounded-xl bg-white px-3 py-3 ring-1 ring-slate-200">
-                    <div
-                      className="mb-2 h-2 w-full rounded-full"
-                      style={{
-                        backgroundColor:
-                          CHART_COLORS[(index + data.bookings.byStatus.length) % CHART_COLORS.length],
-                      }}
-                    />
-                    <div className="text-xs text-slate-500">Waitlist · {titleCaseStatus(k)}</div>
-                    <div className="text-lg font-semibold text-slate-900">{v}</div>
-                  </div>
-                ))}
-              </div>
+            <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm">
+            <div className="mb-6 text-sm font-black text-slate-900 uppercase tracking-widest">Quick Breakdown</div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {[
+                { label: "Booking · Active", val: data.bookings.byStatus.active ?? 0, color: "bg-blue-800" },
+                { label: "Booking · No Show", val: data.bookings.byStatus.no_show ?? 0, color: "bg-emerald-500" },
+                { label: "Booking · Cancelled", val: data.bookings.byStatus.cancelled ?? 0, color: "bg-amber-500" },
+                { label: "Waitlist · Offered", val: data.waitlist.byStatus.offered ?? 0, color: "bg-indigo-500" },
+                { label: "Waitlist · Waiting", val: data.waitlist.byStatus.waiting ?? 0, color: "bg-teal-600" },
+              ].map((item) => (
+                <div key={item.label} className="bg-white p-4 rounded-2xl border border-slate-50 shadow-sm relative overflow-hidden">
+                  <div className={`absolute top-0 left-0 w-full h-1.5 ${item.color}`} />
+                  <p className="text-[10px] font-bold text-slate-400">{item.label}</p>
+                  <p className="text-2xl font-black text-slate-900 mt-1">{item.val}</p>
+                </div>
+              ))}
             </div>
-
+          </div>
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <div className={chartCardClass()}>
-                <div className="mb-3 text-sm font-medium text-slate-700">Top Booked Rooms (Count)</div>
+                <div className="mb-6 text-sm font-black text-slate-900 uppercase tracking-widest">
+                  Top Booked Rooms (Count)
+                </div>
                 {topRoomsByCountData.length === 0 ? (
                   <EmptyChart label="Top rooms" />
                 ) : (
                   <div className="h-[320px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={topRoomsByCountData} layout="vertical" margin={{ left: 30 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" allowDecimals={false} />
-                        <YAxis type="category" dataKey="roomName" width={120} />
-                        <Tooltip />
-                        <Bar dataKey="bookingCount" name="Bookings" fill="#2563eb" radius={[0, 8, 8, 0]} />
+                      <BarChart data={topRoomsByCountData} layout="vertical" margin={{ left: 40, right: 40, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      
+                        <XAxis 
+                          type="number" 
+                          axisLine={{ stroke: '#94a3b8' }} 
+                          tickLine={{ stroke: '#94a3b8' }} 
+                          tick={{ fill: UWI_COLORS.slate, fontSize: 12 }}
+                          allowDecimals={false}
+                        />
+                        
+                        <YAxis 
+                          type="category" 
+                          dataKey="roomName" 
+                          width={120} 
+                          axisLine={{ stroke: '#94a3b8' }} 
+                          tickLine={{ stroke: '#94a3b8' }} 
+                          tick={{ fill: UWI_COLORS.slate, fontSize: 12, fontWeight: 700 }} 
+                        />
+
+                        <Tooltip 
+                          cursor={{ fill: 'rgba(241, 245, 249, 0.5)' }}
+                          contentStyle={{ 
+                            borderRadius: '16px', border: 'none', 
+                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                            fontSize: '12px', fontWeight: '700'
+                          }}
+                          formatter={((value: any) => [`${value} bookings`, "Activity"]) as any} 
+                        />
+                        <Bar 
+                          dataKey="bookingCount" 
+                          fill={UWI_COLORS.navy} 
+                          radius={[0, 6, 6, 0]} 
+                          barSize={20} 
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                 )}
               </div>
-
               <div className={chartCardClass()}>
-                <div className="mb-3 text-sm font-medium text-slate-700">Top Booked Rooms (Hours)</div>
+                <div className="mb-6 text-sm font-black text-slate-900 uppercase tracking-widest">
+                  Top Booked Rooms (Hours)
+                </div>
                 {topRoomsByHoursData.length === 0 ? (
                   <EmptyChart label="Top rooms by hours" />
                 ) : (
                   <div className="h-[320px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={topRoomsByHoursData} layout="vertical" margin={{ left: 30 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" />
-                        <YAxis type="category" dataKey="roomName" width={120} />
-                        <Tooltip />
-                        <Bar dataKey="bookedHours" name="Hours" fill="#16a34a" radius={[0, 8, 8, 0]} />
+                      <BarChart data={topRoomsByHoursData} layout="vertical" margin={{ left: 0, right: 40, bottom: 20 }}>
+                        {/* Add a full grid for precise tracking */}
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={true} horizontal={true} />
+                        
+                        {/* Restore the X-Axis (The Hours Scale) */}
+                        <XAxis 
+                          type="number" 
+                          axisLine={{ stroke: '#94a3b8' }} 
+                          tickLine={{ stroke: '#94a3b8' }} 
+                          tick={{ fill: UWI_COLORS.slate, fontSize: 12 }}
+                          dy={10}
+                        />
+                        
+                        {/* Restore the Y-Axis (Room Names) */}
+                        <YAxis 
+                          type="category" 
+                          dataKey="roomName" 
+                          width={120} 
+                          axisLine={{ stroke: '#94a3b8' }} 
+                          tickLine={{ stroke: '#94a3b8' }} 
+                          tick={{ fill: UWI_COLORS.slate, fontSize: 12, fontWeight: 700 }} 
+                        />
+                        
+                        <Tooltip 
+                          cursor={{ fill: 'rgba(241, 245, 249, 0.5)' }}
+                          contentStyle={{ 
+                            borderRadius: '16px', border: 'none', 
+                            boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                            fontSize: '12px', fontWeight: '700'
+                          }}
+                          formatter={((value: any) => [`${value.toFixed(1)} hours`, "Time Spent"]) as any} 
+                        />
+                        
+                        <Bar 
+                          dataKey="bookedHours" 
+                          name="Hours" 
+                          fill={UWI_COLORS.emerald} 
+                          radius={[0, 6, 6, 0]} 
+                          barSize={20} 
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -568,19 +746,50 @@ export default function ReportsClient({ mode }: { mode: Mode }) {
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <div className={chartCardClass()}>
-                <div className="mb-3 text-sm font-medium text-slate-700">Top Users / Repeat Bookers</div>
+                <div className="mb-6 text-sm font-black text-slate-900 uppercase tracking-widest">
+                  Top Users / Repeat Bookers
+                </div>
                 {topUsersData.length === 0 ? (
                   <EmptyChart label="Top users" />
                 ) : (
                   <div className="h-[320px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={topUsersData} layout="vertical" margin={{ left: 30 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" allowDecimals={false} />
-                        <YAxis type="category" dataKey="fullName" width={140} />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="bookingCount" name="Bookings" fill="#7c3aed" radius={[0, 8, 8, 0]} />
+                      <BarChart data={topUsersData} layout="vertical" margin={{ left: 0, right: 40, bottom: 20 }}>
+                        {/* Full grid background */}
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={true} horizontal={true} />
+                        
+                        {/* Restore the X-Axis (Booking Count Scale) */}
+                        <XAxis 
+                          type="number" 
+                          axisLine={{ stroke: '#94a3b8' }} 
+                          tickLine={{ stroke: '#94a3b8' }} 
+                          tick={{ fill: UWI_COLORS.slate, fontSize: 12 }}
+                          allowDecimals={false}
+                          dy={10}
+                        />
+                        
+                        {/* Restore the Y-Axis (Student Names) */}
+                        <YAxis 
+                          type="category" 
+                          dataKey="fullName" 
+                          width={140} 
+                          axisLine={{ stroke: '#94a3b8' }} 
+                          tickLine={{ stroke: '#94a3b8' }} 
+                          tick={{ fill: UWI_COLORS.slate, fontSize: 12, fontWeight: 700 }} 
+                        />
+                        
+                        <Tooltip 
+                          cursor={{ fill: 'rgba(241, 245, 249, 0.5)' }}
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                        />
+                        
+                        <Bar 
+                          dataKey="bookingCount" 
+                          name="Bookings" 
+                          fill={UWI_COLORS.navy} 
+                          radius={[0, 6, 6, 0]} 
+                          barSize={18} 
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -588,21 +797,52 @@ export default function ReportsClient({ mode }: { mode: Mode }) {
               </div>
 
               <div className={chartCardClass()}>
-                <div className="mb-3 text-sm font-medium text-slate-700">Usage by Department</div>
+                <div className="mb-6 text-sm font-black text-slate-900 uppercase tracking-widest">Usage by Department</div>
                 {usageByDepartmentData.length === 0 ? (
                   <EmptyChart label="Department usage" />
                 ) : (
                   <div className="h-[320px]">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={usageByDepartmentData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="department" />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="bookingCount" name="Bookings" fill="#2563eb" radius={[8, 8, 0, 0]} />
-                        <Bar dataKey="bookedHours" name="Hours" fill="#16a34a" radius={[8, 8, 0, 0]} />
-                      </BarChart>
+                      <BarChart data={usageByDepartmentData} margin={{ top: 20, right: 10, left: 0, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      
+                      <XAxis 
+                        dataKey="department" 
+                        axisLine={{ stroke: '#94a3b8' }} 
+                        tickLine={{ stroke: '#94a3b8' }} 
+                        tick={{ fill: UWI_COLORS.slate, fontSize: 11, fontWeight: 700 }} 
+                        dy={10}
+                      />
+                      
+                      <YAxis 
+                        axisLine={{ stroke: '#94a3b8' }} 
+                        tickLine={{ stroke: '#94a3b8' }} 
+                        tick={{ fill: UWI_COLORS.slate, fontSize: 11 }} 
+                      />
+                      <Tooltip 
+                      cursor={{ fill: 'rgba(241, 245, 249, 0.5)' }} // Subtle highlight on hover
+                      contentStyle={{ 
+                        borderRadius: '16px', 
+                        border: 'none', 
+                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        color: '#1e293b'
+                      }}
+                      formatter={(value: any, name: any) => {
+                        if (name === "Bookings") return [`${value} sessions`, "Total Bookings"];
+                        if (name === "Hours") {
+                          // We check if it's a number before calling toFixed to be safe
+                          const val = typeof value === 'number' ? value.toFixed(1) : value;
+                          return [`${val} hours`, "Time Occupied"];
+                        }
+                        return [value, name];
+                      }}
+                    />
+                      <Legend verticalAlign="top" align="right" height={36} iconType="circle" />
+                      <Bar name="Bookings" dataKey="bookingCount" fill={UWI_COLORS.navy} radius={[4, 4, 0, 0]} barSize={24} />
+                      <Bar name="Hours" dataKey="bookedHours" fill={UWI_COLORS.amber} radius={[4, 4, 0, 0]} barSize={24} />
+                    </BarChart>
                     </ResponsiveContainer>
                   </div>
                 )}
@@ -611,7 +851,7 @@ export default function ReportsClient({ mode }: { mode: Mode }) {
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <div className={chartCardClass()}>
-                <div className="mb-3 text-sm font-medium text-slate-700">Busiest Days</div>
+                <div className="mb-6 text-sm font-black text-slate-900 uppercase tracking-widest">Busiest Days</div>
                 {busiestDaysData.length === 0 ? (
                   <EmptyChart label="Busiest days" />
                 ) : (
@@ -630,7 +870,7 @@ export default function ReportsClient({ mode }: { mode: Mode }) {
               </div>
 
               <div className={chartCardClass()}>
-                <div className="mb-3 text-sm font-medium text-slate-700">Busiest Hours</div>
+                <div className="mb-6 text-sm font-black text-slate-900 uppercase tracking-widest">Busiest Hours</div>
                 {busiestHoursData.length === 0 ? (
                   <EmptyChart label="Busiest hours" />
                 ) : (
@@ -649,8 +889,7 @@ export default function ReportsClient({ mode }: { mode: Mode }) {
               </div>
             </div>
           </div>
-        ) : null}
-      </div>
+      ) : null}
     </div>
   );
 }

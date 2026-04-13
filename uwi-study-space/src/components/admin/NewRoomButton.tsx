@@ -22,11 +22,25 @@ export function NewRoomButton() {
       />
 
       <button
-        className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
         type="button"
         onClick={() => setOpen(true)}
+        className="
+          inline-flex items-center gap-2
+          rounded-xl
+          bg-[var(--color-primary)]
+          px-4 py-2.5
+          text-sm font-semibold text-white
+          shadow-sm
+          transition-all duration-150
+          hover:bg-[var(--color-primary-dark)]
+          active:scale-[0.98]
+          focus:outline-none
+          focus:ring-2
+          focus:ring-[var(--color-primary)]/40
+        "
       >
-        + New Room
+        <span className="text-base leading-none">+</span>
+        New Room
       </button>
     </>
   );

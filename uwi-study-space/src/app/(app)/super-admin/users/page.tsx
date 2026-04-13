@@ -1,6 +1,13 @@
 "use client";
 
+// src/app/(app)/super-admin/users/page.tsx
+
 import { useEffect, useMemo, useState } from "react";
+
+/* ─────────────────────────────────────────────────────────────
+   Types
+───────────────────────────────────────────────────────────── */
+type Role = "student" | "staff" | "admin" | "super_admin";
 
 type UserRow = {
   id: string;
@@ -14,7 +21,7 @@ type UserRow = {
   emailVerifiedAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
-  role: "student" | "staff" | "admin" | "super_admin";
+  role: Role;
   departmentId: number | null;
   departmentName: string | null;
   scopedDepartmentIds: number[];
@@ -26,12 +33,12 @@ type MeResponse = {
   user: null | {
     id: string;
     email: string | null;
-    role: "student" | "staff" | "admin" | "super_admin" | null;
+    role: Role | null;
     departmentId: number | null;
   };
 };
 
-const ROLE_PRIORITY: Record<UserRow["role"], number> = {
+const ROLE_PRIORITY: Record<Role, number> = {
   super_admin: 0,
   admin: 1,
   staff: 2,
@@ -47,25 +54,69 @@ function fmtDate(iso?: string | null) {
   }).format(new Date(iso));
 }
 
-function RoleBadge({ role }: { role: UserRow["role"] }) {
-  const cls =
-    role === "super_admin"
-      ? "bg-purple-50 text-purple-700 ring-purple-100"
-      : role === "admin"
-        ? "bg-blue-50 text-blue-700 ring-blue-100"
-        : role === "staff"
-          ? "bg-amber-50 text-amber-700 ring-amber-100"
-          : "bg-slate-50 text-slate-700 ring-slate-200";
+/* ─────────────────────────────────────────────────────────────
+   Shared primitives
+───────────────────────────────────────────────────────────── */
+function Spinner({
+  light = false,
+  size = 14,
+}: {
+  light?: boolean;
+  size?: number;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      className="animate-spin shrink-0"
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke={light ? "rgba(255,255,255,0.25)" : "rgba(0,53,149,0.15)"}
+        strokeWidth="3"
+      />
+      <path
+        d="M12 2a10 10 0 0 1 10 10"
+        stroke={light ? "#fff" : "#003595"}
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function RoleBadge({ role }: { role: Role }) {
+  const styles: Record<Role, string> = {
+    super_admin: "bg-[#003595] text-white ring-[#003595]",
+    admin: "bg-[#EAF6FF] text-[#003595] ring-[#003595]/20",
+    staff: "bg-[#F3F4F6] text-[#374151] ring-[#E5E7EB]",
+    student: "bg-[#F3F4F6] text-[#374151] ring-[#E5E7EB]",
+  };
+
+  const labels: Record<Role, string> = {
+    super_admin: "Super Admin",
+    admin: "Admin",
+    staff: "Staff",
+    student: "Student",
+  };
 
   return (
-    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1 ${cls}`}>
-      {role === "super_admin" ? "Super Admin" : role === "admin" ? "Admin" : role === "staff" ? "Staff" : "Student"}
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-wide uppercase ring-1 ${styles[role]}`}
+    >
+      {labels[role]}
     </span>
   );
 }
 
 function StatusBadge({ value }: { value: string | null }) {
   const text = value || "—";
+
   const cls =
     value === "active"
       ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
@@ -76,12 +127,42 @@ function StatusBadge({ value }: { value: string | null }) {
           : "bg-slate-50 text-slate-700 ring-slate-200";
 
   return (
-    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ring-1 ${cls}`}>
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-medium ring-1 ${cls}`}
+    >
       {text}
     </span>
   );
 }
 
+function SkeletonRow() {
+  return (
+    <tr className="animate-pulse border-b border-[#F3F4F6]">
+      <td className="py-3.5 pl-5 pr-4">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-full bg-[#F3F4F6] shrink-0" />
+          <div className="space-y-1.5">
+            <div className="h-3.5 w-32 rounded bg-[#F3F4F6]" />
+            <div className="h-2.5 w-44 rounded bg-[#F3F4F6]" />
+          </div>
+        </div>
+      </td>
+      <td className="py-3.5 px-4 hidden md:table-cell">
+        <div className="h-5 w-20 rounded-full bg-[#F3F4F6]" />
+      </td>
+      <td className="py-3.5 px-4 hidden lg:table-cell">
+        <div className="h-4 w-28 rounded bg-[#F3F4F6]" />
+      </td>
+      <td className="py-3.5 pl-4 pr-5">
+        <div className="h-8 w-32 rounded-lg bg-[#F3F4F6] ml-auto" />
+      </td>
+    </tr>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Scope assignment modal
+───────────────────────────────────────────────────────────── */
 function ScopeModal({
   open,
   onClose,
@@ -99,84 +180,104 @@ function ScopeModal({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
-    setSelected(user.scopedDepartmentIds ?? []);
+    if (user) setSelected(user.scopedDepartmentIds ?? []);
   }, [user]);
 
   if (!open || !user) return null;
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-5 ring-1 ring-slate-200">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-lg font-semibold text-slate-900">Assign Departments</div>
-            <div className="mt-1 text-sm text-slate-600">Select which departments this admin can manage.</div>
-          </div>
-
-          <button
-            onClick={() => !saving && onClose()}
-            className="rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100 disabled:opacity-60"
-            aria-label="Close"
-            disabled={saving}
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-[2px] p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !saving) onClose();
+      }}
+    >
+      <div className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-[#E5E7EB] overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#E5E7EB] bg-[#F9FAFB]">
+          <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-[#003595] mb-0.5">
+            Admin Permissions
+          </p>
+          <h2
+            style={{ fontFamily: "Georgia, serif" }}
+            className="text-lg font-bold text-[#1F2937]"
           >
-            ✕
-          </button>
+            Assign Departments
+          </h2>
+          <p className="mt-0.5 text-xs text-[#6B7280]">
+            {user.fullName || user.email} — select departments this admin can
+            manage.
+          </p>
         </div>
 
-        <div className="mt-4 rounded-xl border border-slate-200 p-3">
-          <div className="text-sm font-medium text-slate-900">{user.fullName || "Unnamed User"}</div>
-          <div className="text-xs text-slate-600">{user.email}</div>
+        <div className="px-5 py-4 max-h-72 overflow-y-auto space-y-1.5">
+          {departments.length === 0 ? (
+            <p className="text-xs text-[#9CA3AF] text-center py-4">
+              No departments found.
+            </p>
+          ) : (
+            departments.map((d) => {
+              const checked = selected.includes(d.id);
+              return (
+                <label
+                  key={d.id}
+                  className="flex cursor-pointer items-center justify-between rounded-lg border border-[#E5E7EB] px-3.5 py-2.5 hover:border-[#003595]/30 hover:bg-[#EAF6FF]/40 transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#EAF6FF] text-[#003595] text-[10px] font-extrabold">
+                      {d.name[0]?.toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-[#1F2937]">
+                      {d.name}
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={saving}
+                    onChange={(e) => {
+                      setSelected(
+                        e.target.checked
+                          ? Array.from(new Set([...selected, d.id]))
+                          : selected.filter((x) => x !== d.id),
+                      );
+                    }}
+                    className="h-4 w-4 rounded border-[#E5E7EB] accent-[#003595]"
+                  />
+                </label>
+              );
+            })
+          )}
         </div>
 
-        <div className="mt-4 space-y-2">
-          {departments.map((d) => {
-            const checked = selected.includes(d.id);
-            return (
-              <label
-                key={d.id}
-                className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 px-3 py-2 hover:bg-slate-50"
-              >
-                <div className="text-sm text-slate-900">{d.name}</div>
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={saving}
-                  onChange={(e) => {
-                    const next = e.target.checked
-                      ? Array.from(new Set([...selected, d.id]))
-                      : selected.filter((x) => x !== d.id);
-                    setSelected(next);
-                  }}
-                />
-              </label>
-            );
-          })}
-        </div>
-
-        <div className="mt-5 flex items-center justify-end gap-2">
+        <div className="flex gap-2.5 px-5 pb-5 border-t border-[#E5E7EB] pt-4">
           <button
             onClick={onClose}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             disabled={saving}
+            className="flex-1 rounded-lg border border-[#E5E7EB] bg-white py-2.5 text-sm font-semibold text-[#374151] hover:bg-[#F3F4F6] disabled:opacity-50 transition-colors"
           >
             Cancel
           </button>
-
           <button
+            disabled={saving}
             onClick={async () => {
+              setSaving(true);
               try {
-                setSaving(true);
                 await onSave(selected);
                 onClose();
               } finally {
                 setSaving(false);
               }
             }}
-            className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-            disabled={saving}
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-[#003595] py-2.5 text-sm font-bold text-white hover:bg-[#002366] disabled:opacity-50 transition-colors"
           >
-            {saving ? "Saving..." : "Save Scopes"}
+            {saving ? (
+              <>
+                <Spinner light size={14} />
+                Saving…
+              </>
+            ) : (
+              "Save Permissions"
+            )}
           </button>
         </div>
       </div>
@@ -184,36 +285,44 @@ function ScopeModal({
   );
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Main page
+───────────────────────────────────────────────────────────── */
 export default function SuperAdminUsersPage() {
-  const [busyUserId, setBusyUserId] = useState<string | null>(null);
-  const [busyScopes, setBusyScopes] = useState(false);
-
   const [users, setUsers] = useState<UserRow[]>([]);
   const [departments, setDepartments] = useState<Dept[]>([]);
-  const [q, setQ] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"all" | UserRow["role"]>("all");
+  const [loading, setLoading] = useState(true);
 
   const [myId, setMyId] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
 
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [scopeModalOpen, setScopeModalOpen] = useState(false);
   const [scopeUser, setScopeUser] = useState<UserRow | null>(null);
 
   async function refresh() {
-    const meRes = await fetch("/api/me");
+    const [meRes, usersRes, deptsRes] = await Promise.all([
+      fetch("/api/me"),
+      fetch("/api/super-admin/users/list"),
+      fetch("/api/departments"),
+    ]);
+
     const meJson = (await meRes.json().catch(() => null)) as MeResponse | null;
     setMyId(meJson?.user?.id ?? null);
 
-    const r = await fetch("/api/super-admin/users/list");
-    const j = await r.json().catch(() => ({}));
-    setUsers(j.users ?? []);
+    const uJson = await usersRes.json().catch(() => ({}));
+    setUsers(uJson.users ?? []);
 
-    const d = await fetch("/api/departments");
-    const dj = await d.json().catch(() => ({}));
-    setDepartments(dj.departments ?? []);
+    const dJson = await deptsRes.json().catch(() => ({}));
+    setDepartments(dJson.departments ?? []);
   }
 
   useEffect(() => {
-    refresh().catch(() => {});
+    setLoading(true);
+    refresh()
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = useMemo(() => {
@@ -242,15 +351,26 @@ export default function SuperAdminUsersPage() {
       .sort((a, b) => {
         const byRole = ROLE_PRIORITY[a.role] - ROLE_PRIORITY[b.role];
         if (byRole !== 0) return byRole;
-
-        return (a.fullName || a.email || "").localeCompare(b.fullName || b.email || "");
+        return (a.fullName || a.email || "").localeCompare(
+          b.fullName || b.email || "",
+        );
       });
   }, [users, q, roleFilter]);
 
-  async function updateRole(targetUserId: string, newRole: UserRow["role"]) {
-    try {
-      setBusyUserId(targetUserId);
+  const counts = useMemo(
+    () => ({
+      total: users.length,
+      super_admin: users.filter((u) => u.role === "super_admin").length,
+      admin: users.filter((u) => u.role === "admin").length,
+      staff: users.filter((u) => u.role === "staff").length,
+      student: users.filter((u) => u.role === "student").length,
+    }),
+    [users],
+  );
 
+  async function updateRole(targetUserId: string, newRole: Role) {
+    setBusyUserId(targetUserId);
+    try {
       const r = await fetch("/api/super-admin/users/update-role", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -270,201 +390,380 @@ export default function SuperAdminUsersPage() {
   }
 
   async function saveDeptScopes(adminUserId: string, deptIds: number[]) {
-    try {
-      setBusyScopes(true);
+    const r = await fetch("/api/super-admin/scopes/set-departments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminUserId, departmentIds: deptIds }),
+    });
 
-      const r = await fetch("/api/super-admin/scopes/set-departments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adminUserId, departmentIds: deptIds }),
-      });
-
-      if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        alert(j.error ?? "Failed to update scopes");
-        return;
-      }
-
-      await refresh();
-    } finally {
-      setBusyScopes(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error(j.error ?? "Failed");
     }
+
+    await refresh();
   }
 
   return (
-    <div className="rounded-2xl bg-white p-6 ring-1 ring-slate-200">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">Users</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Manage roles, profile visibility, and department scopes.
-          </p>
-        </div>
-
-        <div className="rounded-full bg-slate-50 px-3 py-1 text-xs text-slate-700 ring-1 ring-slate-200">
-          {users.length} users
+    <div className="min-h-screen bg-[#F9FAFB]">
+      <div className="bg-white border-b-2 border-[#003595]">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="h-1 w-16 bg-[#003595] -mb-px" />
+          <div className="py-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-[#003595] mb-1.5">
+                Super Admin — User Management
+              </p>
+              <h1
+                style={{ fontFamily: "Georgia, serif" }}
+                className="text-3xl sm:text-4xl font-bold text-[#1F2937]"
+              >
+                Users
+              </h1>
+              <p className="mt-1.5 text-sm text-[#6B7280] max-w-lg">
+                Manage roles and department permissions for all registered users.
+              </p>
+            </div>
+            <nav className="flex items-center gap-1.5 text-xs text-[#9CA3AF] shrink-0 pb-1">
+              <span>Super Admin</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="m9 18 6-6-6-6"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="font-semibold text-[#003595]">Users</span>
+            </nav>
+          </div>
         </div>
       </div>
 
-      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 sm:max-w-xl">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by name, email, ID, phone, faculty..."
-            className="w-full bg-transparent text-sm outline-none"
-          />
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {(["student", "staff", "admin", "super_admin"] as Role[]).map(
+            (role) => (
+              <button
+                key={role}
+                onClick={() =>
+                  setRoleFilter(roleFilter === role ? "all" : role)
+                }
+                className={`rounded-xl border px-4 py-3 text-left transition-all ${
+                  roleFilter === role
+                    ? "border-[#003595] bg-[#EAF6FF]"
+                    : "border-[#E5E7EB] bg-white hover:border-[#003595]/30"
+                }`}
+              >
+                <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-[#9CA3AF]">
+                  {role === "super_admin"
+                    ? "Super Admin"
+                    : role.charAt(0).toUpperCase() + role.slice(1)}
+                </p>
+                <p
+                  style={{ fontFamily: "Georgia, serif" }}
+                  className={`text-2xl font-bold mt-0.5 ${
+                    roleFilter === role ? "text-[#003595]" : "text-[#1F2937]"
+                  }`}
+                >
+                  {counts[role]}
+                </p>
+              </button>
+            ),
+          )}
         </div>
 
-        <select
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm sm:w-44"
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value as "all" | UserRow["role"])}
-        >
-          <option value="all">All Roles</option>
-          <option value="student">Student</option>
-          <option value="staff">Staff</option>
-          <option value="admin">Admin</option>
-          <option value="super_admin">Super Admin</option>
-        </select>
-      </div>
+        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-[#E5E7EB] bg-[#F9FAFB]">
+            <h2 className="text-xs font-bold tracking-[0.12em] uppercase text-[#374151]">
+              Filter & Search
+            </h2>
+          </div>
+          <div className="px-5 py-4 flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[#9CA3AF]">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <circle
+                    cx="11"
+                    cy="11"
+                    r="7"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  />
+                  <path
+                    d="m16.5 16.5 4 4"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search by name, email, ID, phone, faculty…"
+                className="w-full rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] py-2.5 pl-9 pr-4 text-sm text-[#1F2937] outline-none placeholder:text-[#9CA3AF] transition focus:border-[#003595] focus:ring-2 focus:ring-[#003595]/10"
+              />
+            </div>
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
-        <div className="grid grid-cols-12 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">
-          <div className="col-span-3">User</div>
-          <div className="col-span-2">Academic</div>
-          <div className="col-span-2">Account</div>
-          <div className="col-span-1">Role</div>
-          <div className="col-span-2">Departments (Scope)</div>
-          <div className="col-span-2 text-right">Actions</div>
+            <select
+              value={roleFilter}
+              onChange={(e) =>
+                setRoleFilter(e.target.value as "all" | Role)
+              }
+              className="rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3.5 py-2.5 text-sm text-[#1F2937] outline-none transition focus:border-[#003595] focus:ring-2 focus:ring-[#003595]/10 sm:w-44"
+            >
+              <option value="all">All Roles</option>
+              <option value="student">Student</option>
+              <option value="staff">Staff</option>
+              <option value="admin">Admin</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
+          </div>
         </div>
 
-        <div className="divide-y divide-slate-200">
-          {filtered.map((u) => {
-            const isMe = myId != null && u.id === myId;
+        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-[#E5E7EB] bg-[#F9FAFB] flex items-center justify-between">
+            <h2 className="text-xs font-bold tracking-[0.12em] uppercase text-[#374151]">
+              All Users
+            </h2>
+            {!loading && (
+              <span className="text-xs text-[#9CA3AF]">
+                {filtered.length} of {users.length}
+              </span>
+            )}
+          </div>
 
-            return (
-              <div key={u.id} className="grid grid-cols-12 items-start gap-2 px-4 py-3">
-                <div className="col-span-3">
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm font-semibold text-slate-900">{u.fullName || "—"}</div>
-                    {isMe && (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 ring-1 ring-slate-200">
-                        You
-                      </span>
-                    )}
-                  </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm" aria-label="Users table">
+              <thead>
+                <tr className="border-b border-[#E5E7EB]">
+                  <th className="py-3 pl-5 pr-4 text-left text-[10px] font-bold tracking-[0.15em] uppercase text-[#9CA3AF]">
+                    User
+                  </th>
+                  <th className="py-3 px-4 text-left text-[10px] font-bold tracking-[0.15em] uppercase text-[#9CA3AF] hidden md:table-cell">
+                    Role
+                  </th>
+                  <th className="py-3 px-4 text-left text-[10px] font-bold tracking-[0.15em] uppercase text-[#9CA3AF] hidden lg:table-cell">
+                    Dept. Scope
+                  </th>
+                  <th className="py-3 pl-4 pr-5 text-right text-[10px] font-bold tracking-[0.15em] uppercase text-[#9CA3AF]">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
 
-                  <div className="text-xs text-slate-600">{u.email}</div>
-                  <div className="text-xs text-slate-500">ID: {u.uwiId || "—"}</div>
-                  <div className="text-xs text-slate-500">Phone: {u.phone || "—"}</div>
-                </div>
+              <tbody className="divide-y divide-[#F3F4F6]">
+                {loading ? (
+                  <>
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <SkeletonRow key={i} />
+                    ))}
+                  </>
+                ) : filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={4}>
+                      <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <div className="h-12 w-12 rounded-xl bg-[#F3F4F6] flex items-center justify-center mb-3 text-[#9CA3AF]">
+                          <svg
+                            width="22"
+                            height="22"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                          >
+                            <circle
+                              cx="12"
+                              cy="8"
+                              r="4"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                            />
+                            <path
+                              d="M4 20c0-4 3.582-7 8-7s8 3 8 7"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        </div>
+                        <p className="text-sm font-semibold text-[#374151]">
+                          No users found
+                        </p>
+                        <p className="mt-1 text-xs text-[#9CA3AF]">
+                          Try adjusting your search or filter.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((u) => {
+                    const isMe = myId === u.id;
+                    const isBusy = busyUserId === u.id;
 
-                <div className="col-span-2 text-xs text-slate-600">
-                  <div>{u.faculty || "—"}</div>
-                  <div>{u.academicStatus || "—"}</div>
-                  <div>{u.departmentName || "—"}</div>
-                </div>
-
-                <div className="col-span-2 text-xs text-slate-600">
-                  <div><StatusBadge value={u.accountStatus} /></div>
-                  <div className="mt-2">Verified: {u.emailVerifiedAt ? fmtDate(u.emailVerifiedAt) : "No"}</div>
-                  <div>Created: {fmtDate(u.createdAt)}</div>
-                </div>
-
-                <div className="col-span-1">
-                  <RoleBadge role={u.role} />
-                </div>
-
-                <div className="col-span-2">
-                  {u.role === "admin" ? (
-                    <div className="flex flex-wrap gap-2">
-                      {(u.scopedDepartmentIds ?? []).length === 0 ? (
-                        <span className="text-xs text-slate-500">No scopes</span>
-                      ) : (
-                        u.scopedDepartmentIds.map((deptId) => {
-                          const d = departments.find((x) => x.id === deptId);
-                          return (
-                            <span
-                              key={deptId}
-                              className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 text-xs text-slate-700 ring-1 ring-slate-200"
-                            >
-                              {d?.name ?? `Dept ${deptId}`}
-                            </span>
-                          );
-                        })
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-xs text-slate-500">—</span>
-                  )}
-                </div>
-
-                <div className="col-span-2 flex flex-wrap justify-end gap-2">
-                  {(u.role === "student" || u.role === "staff") && (
-                    <button
-                      onClick={() => updateRole(u.id, "admin")}
-                      disabled={busyUserId === u.id || busyScopes || isMe}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                      title={isMe ? "Action disabled on your own account" : undefined}
-                    >
-                      {busyUserId === u.id ? "Working..." : "Make Admin"}
-                    </button>
-                  )}
-
-                  {u.role === "admin" && (
-                    <>
-                      <button
-                        onClick={() => {
-                          setScopeUser(u);
-                          setScopeModalOpen(true);
-                        }}
-                        disabled={busyUserId === u.id || busyScopes || isMe}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                        title={isMe ? "Action disabled on your own account" : undefined}
+                    return (
+                      <tr
+                        key={u.id}
+                        className="group hover:bg-[#F9FAFB] transition-colors"
                       >
-                        Assign Dept
-                      </button>
+                        <td className="py-3.5 pl-5 pr-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EAF6FF] text-[#003595] text-[11px] font-extrabold select-none ring-1 ring-[#003595]/10">
+                              {(u.fullName || u.email).charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-semibold text-[#1F2937] group-hover:text-[#003595] transition-colors truncate">
+                                  {u.fullName || "—"}
+                                </p>
+                                {isMe && (
+                                  <span className="shrink-0 rounded-full bg-[#F3F4F6] px-1.5 py-0.5 text-[10px] font-bold text-[#6B7280] ring-1 ring-[#E5E7EB]">
+                                    You
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-[#9CA3AF] truncate">
+                                {u.email}
+                              </p>
+                              {u.uwiId && (
+                                <p className="text-[11px] text-[#9CA3AF]">
+                                  ID: {u.uwiId}
+                                </p>
+                              )}
+                              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                {u.accountStatus && (
+                                  <StatusBadge value={u.accountStatus} />
+                                )}
+                                {u.academicStatus && (
+                                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-slate-50 text-slate-700 ring-1 ring-slate-200">
+                                    {u.academicStatus}
+                                  </span>
+                                )}
+                                {u.faculty && (
+                                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-slate-50 text-slate-700 ring-1 ring-slate-200">
+                                    {u.faculty}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-1 text-[11px] text-[#9CA3AF]">
+                                Verified:{" "}
+                                {u.emailVerifiedAt ? fmtDate(u.emailVerifiedAt) : "No"}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
 
-                      <button
-                        onClick={() => updateRole(u.id, "super_admin")}
-                        disabled={busyUserId === u.id || busyScopes || isMe}
-                        className="rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-semibold text-purple-700 hover:bg-purple-100 disabled:opacity-60"
-                        title={isMe ? "Action disabled on your own account" : undefined}
-                      >
-                        {busyUserId === u.id ? "Working..." : "Make Super"}
-                      </button>
+                        <td className="py-3.5 px-4 hidden md:table-cell">
+                          <RoleBadge role={u.role} />
+                        </td>
 
-                      <button
-                        onClick={() => updateRole(u.id, "staff")}
-                        disabled={busyUserId === u.id || busyScopes || isMe}
-                        className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-60"
-                        title={isMe ? "Action disabled on your own account" : undefined}
-                      >
-                        {busyUserId === u.id ? "Working..." : "Demote to Staff"}
-                      </button>
+                        <td className="py-3.5 px-4 hidden lg:table-cell">
+                          {u.role === "admin" ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {(u.scopedDepartmentIds ?? []).length === 0 ? (
+                                <span className="text-xs text-[#9CA3AF] italic">
+                                  No scope assigned
+                                </span>
+                              ) : (
+                                u.scopedDepartmentIds.map((deptId) => {
+                                  const d = departments.find((x) => x.id === deptId);
+                                  return (
+                                    <span
+                                      key={deptId}
+                                      className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-[11px] text-[#374151] ring-1 ring-[#E5E7EB]"
+                                    >
+                                      {d?.name ?? `#${deptId}`}
+                                    </span>
+                                  );
+                                })
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-[#9CA3AF]">—</span>
+                          )}
+                        </td>
 
-                      <button
-                        onClick={() => updateRole(u.id, "student")}
-                        disabled={busyUserId === u.id || busyScopes || isMe}
-                        className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
-                        title={isMe ? "Action disabled on your own account" : undefined}
-                      >
-                        {busyUserId === u.id ? "Working..." : "Demote to Student"}
-                      </button>
-                    </>
-                  )}
+                        <td className="py-3.5 pl-4 pr-5">
+                          {isMe ? (
+                            <div className="flex justify-end">
+                              <span className="text-xs text-[#9CA3AF] italic">
+                                Current account
+                              </span>
+                            </div>
+                          ) : isBusy ? (
+                            <div className="flex justify-end">
+                              <span className="inline-flex items-center gap-1.5 text-xs text-[#6B7280]">
+                                <Spinner size={13} /> Updating…
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                              {(u.role === "student" || u.role === "staff") && (
+                                <button
+                                  onClick={() => updateRole(u.id, "admin")}
+                                  className="rounded-lg border border-[#E5E7EB] bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#374151] hover:border-[#003595] hover:bg-[#EAF6FF] hover:text-[#003595] transition-all whitespace-nowrap"
+                                >
+                                  Make Admin
+                                </button>
+                              )}
 
-                  {u.role === "super_admin" && (
-                    <span className="text-xs text-slate-500">—</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                              {u.role === "admin" && (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      setScopeUser(u);
+                                      setScopeModalOpen(true);
+                                    }}
+                                    className="rounded-lg border border-[#E5E7EB] bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#374151] hover:border-[#003595] hover:bg-[#EAF6FF] hover:text-[#003595] transition-all whitespace-nowrap"
+                                  >
+                                    Assign Dept.
+                                  </button>
 
-          {filtered.length === 0 && (
-            <div className="px-4 py-10 text-center text-sm text-slate-600">No users found.</div>
+                                  <button
+                                    onClick={() => updateRole(u.id, "super_admin")}
+                                    className="rounded-lg border border-[#003595]/20 bg-[#EAF6FF] px-2.5 py-1.5 text-[11px] font-bold text-[#003595] hover:bg-[#003595] hover:text-white transition-all whitespace-nowrap"
+                                  >
+                                    Make Super
+                                  </button>
+
+                                  <button
+                                    onClick={() => updateRole(u.id, "staff")}
+                                    className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-100 transition-colors whitespace-nowrap"
+                                  >
+                                    Demote to Staff
+                                  </button>
+
+                                  <button
+                                    onClick={() => updateRole(u.id, "student")}
+                                    className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-100 transition-colors whitespace-nowrap"
+                                  >
+                                    Demote to Student
+                                  </button>
+                                </>
+                              )}
+
+                              {u.role === "super_admin" && (
+                                <span className="text-xs text-[#9CA3AF]">—</span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {!loading && filtered.length > 0 && (
+            <div className="border-t border-[#E5E7EB] px-5 py-3 bg-[#F9FAFB]">
+              <p className="text-xs text-[#9CA3AF]">
+                {filtered.length} user{filtered.length !== 1 ? "s" : ""} displayed
+                {roleFilter !== "all" ? ` · filtered by ${roleFilter}` : ""}
+                {q ? ` · matching "${q}"` : ""}
+              </p>
+            </div>
           )}
         </div>
       </div>
@@ -477,10 +776,7 @@ export default function SuperAdminUsersPage() {
           setScopeModalOpen(false);
           setScopeUser(null);
         }}
-        onSave={async (deptIds) => {
-          if (!scopeUser) return;
-          await saveDeptScopes(scopeUser.id, deptIds);
-        }}
+        onSave={(ids) => saveDeptScopes(scopeUser!.id, ids)}
       />
     </div>
   );

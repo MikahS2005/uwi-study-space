@@ -13,85 +13,299 @@
 // via lib/db and render the same UI consistently.
 
 import { getRoomsForRoomsManagement } from "@/lib/db/rooms";
+import { getDepartmentOptionsForRoomsManagement } from "@/lib/db/rooms";
 import { RoomRowActions } from "@/components/admin/RoomRowActions";
 import { NewRoomButton } from "@/components/admin/NewRoomButton";
+import AdminSectionBanner from "@/components/admin/shared/AdminSectionBanner";
+import Link from "next/link";
 
 export type RoomsManagementMode = "admin" | "super_admin";
+type RoomsVisibilityFilter = "all" | "active" | "inactive" | "with_amenities";
 
-export async function RoomsManagementPage(props: { mode: RoomsManagementMode }) {
-  const { mode } = props;
+function StatCard({
+  label,
+  value,
+  href,
+  active,
+}: {
+  label: string;
+  value: number;
+  href: string;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`rounded-2xl border px-4 py-3 ${
+        active
+          ? "border-[var(--color-primary)]/15 bg-[var(--color-primary-soft)]"
+          : "border-[var(--color-border-light)] bg-white hover:border-[var(--color-primary)]/20 hover:bg-[var(--color-surface-light)]"
+      }`}
+    >
+      <p
+        className={`text-[10px] font-bold uppercase tracking-[0.15em] ${
+          active
+            ? "text-[var(--color-primary)]/70"
+            : "text-[var(--color-text-light)]/45"
+        }`}
+      >
+        {label}
+      </p>
+      <p
+        style={{ fontFamily: "Georgia, serif" }}
+        className={`mt-0.5 text-2xl font-bold ${
+          active
+            ? "text-[var(--color-primary)]"
+            : "text-[var(--color-text-light)]"
+        }`}
+      >
+        {value}
+      </p>
+    </Link>
+  );
+}
 
-  // Server-side scoped/global list. Authorization enforced inside DB helper.
-  const rooms = await getRoomsForRoomsManagement({ mode });
+export async function RoomsManagementPage(props: {
+  mode: RoomsManagementMode;
+  selectedDepartmentId?: number;
+  selectedVisibilityFilter?: RoomsVisibilityFilter;
+}) {
+  const { mode, selectedDepartmentId, selectedVisibilityFilter = "all" } = props;
 
-  // Small UI copy difference: admins see "visible based on scope", super admins see "total".
-  const subtitle =
+  const [rooms, departmentOptions] = await Promise.all([
+    getRoomsForRoomsManagement({ mode, departmentId: selectedDepartmentId }),
+    getDepartmentOptionsForRoomsManagement({ mode }),
+  ]);
+
+  const basePath = mode === "super_admin" ? "/super-admin/rooms" : "/admin/rooms";
+
+  const description =
     mode === "super_admin"
-      ? `${rooms.length} room(s) total.`
-      : `${rooms.length} room(s) visible based on your scope.`;
+      ? "View, create, and configure all study rooms across every faculty and department."
+      : "View, create, and configure study rooms available in your department scope.";
+
+  const totalRooms = rooms.length;
+  const inactiveRooms = rooms.filter((r) => r.is_active === false).length;
+  const activeRooms = totalRooms - inactiveRooms;
+  const roomsWithAmenities = rooms.filter((r) => (r.amenities ?? []).length > 0).length;
+
+  const visibleRooms =
+    selectedVisibilityFilter === "active"
+      ? rooms.filter((r) => r.is_active !== false)
+      : selectedVisibilityFilter === "inactive"
+        ? rooms.filter((r) => r.is_active === false)
+        : selectedVisibilityFilter === "with_amenities"
+          ? rooms.filter((r) => (r.amenities ?? []).length > 0)
+          : rooms;
+
+  function withFilters(visibility: RoomsVisibilityFilter) {
+    const params = new URLSearchParams();
+    if (selectedDepartmentId) params.set("departmentId", String(selectedDepartmentId));
+    if (visibility !== "all") params.set("visibility", visibility);
+    const q = params.toString();
+    return q ? `${basePath}?${q}` : basePath;
+  }
 
   return (
-    <div className="rounded-2xl bg-white p-6 ring-1 ring-slate-200">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">Rooms</h1>
-          <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
+    <div className="space-y-6">
+      <AdminSectionBanner
+        mode={mode}
+        areaLabel="Room Management"
+        title="Study Rooms"
+        description={description}
+        breadcrumbLabel="Rooms"
+      />
 
-          {mode === "super_admin" ? (
-            <p className="mt-1 text-xs text-slate-500">
-              Super admins can view and manage rooms across all departments.
-            </p>
-          ) : null}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard
+          label="Total Rooms"
+          value={totalRooms}
+          href={withFilters("all")}
+          active={selectedVisibilityFilter === "all"}
+        />
+        <StatCard
+          label="Active"
+          value={activeRooms}
+          href={withFilters("active")}
+          active={selectedVisibilityFilter === "active"}
+        />
+        <StatCard
+          label="Inactive"
+          value={inactiveRooms}
+          href={withFilters("inactive")}
+          active={selectedVisibilityFilter === "inactive"}
+        />
+        <StatCard
+          label="Amenities"
+          value={roomsWithAmenities}
+          href={withFilters("with_amenities")}
+          active={selectedVisibilityFilter === "with_amenities"}
+        />
+      </div>
+
+      <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#E5E7EB] bg-[#F9FAFB] flex items-center justify-between">
+          <h2 className="text-xs font-bold tracking-[0.12em] uppercase text-[#374151]">
+            Filter Rooms
+          </h2>
+
+          <div className="shrink-0">
+            <NewRoomButton />
+          </div>
         </div>
 
-        {/* Uses the SAME button + modal as admin.
-            The server endpoint already allows super_admin to create in any department. */}
-        <NewRoomButton />
+        <form className="px-5 py-4 flex flex-col gap-2 sm:flex-row sm:items-end" method="get" action={basePath}>
+          {selectedVisibilityFilter !== "all" ? (
+            <input type="hidden" name="visibility" value={selectedVisibilityFilter} />
+          ) : null}
+
+          <div className="w-full sm:w-52">
+            <label
+              htmlFor="rooms-department-filter"
+              className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#9CA3AF]"
+            >
+              Department
+            </label>
+            <select
+              id="rooms-department-filter"
+              name="departmentId"
+              defaultValue={selectedDepartmentId ? String(selectedDepartmentId) : ""}
+              className="mt-1.5 h-10 w-full rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-sm text-[#1F2937] outline-none transition focus:border-[#003595] focus:ring-2 focus:ring-[#003595]/10"
+            >
+              <option value="">All departments</option>
+              {departmentOptions.map((dept) => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            className="h-10 rounded-xl bg-[#003595] px-5 text-sm font-semibold text-white transition hover:bg-[#002366]"
+          >
+            Apply Filters
+          </button>
+
+          {selectedDepartmentId || selectedVisibilityFilter !== "all" ? (
+            <Link
+              href={basePath}
+              className="inline-flex h-10 items-center rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-4 text-sm font-semibold text-[#374151] transition hover:bg-white"
+            >
+              Clear
+            </Link>
+          ) : null}
+        </form>
       </div>
 
-      <div className="mt-6 divide-y divide-slate-100 overflow-hidden rounded-xl ring-1 ring-slate-200">
-        {rooms.map((r) => (
-          <div key={r.id} className="flex items-center justify-between gap-4 p-4">
-            <div>
-              <div className="font-medium text-slate-900">{r.name}</div>
-              <div className="text-sm text-slate-600">
-                {r.building}
-                {r.floor ? ` • Floor ${r.floor}` : ""} • Capacity {r.capacity}
-                {r.department?.name ? ` • ${r.department.name}` : ""}
-              </div>
+      <section className="overflow-hidden rounded-[28px] border border-[var(--color-border-light)] bg-white shadow-[0_12px_35px_rgba(17,24,39,0.06)]">
+        <div className="border-b border-[var(--color-border-light)] bg-[var(--color-surface-light)] px-5 py-4 sm:px-6">
+          <div>
+            <h2 className="text-sm font-semibold text-[var(--color-text-light)] sm:text-base">
+              Rooms Directory
+            </h2>
+            <p className="mt-1 text-sm text-[var(--color-text-light)]/62">
+              {mode === "super_admin"
+                ? `${rooms.length} room(s) available across the full system.`
+                : `${rooms.length} room(s) visible within your assigned scope.`}
+            </p>
+          </div>
+        </div>
 
-              <div className="mt-1 flex flex-wrap gap-2">
-                {(r.amenities ?? []).map((a) => (
-                  <span
-                    key={a}
-                    className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
-                  >
-                    {a}
-                  </span>
-                ))}
-
-                {r.is_active === false && (
-                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700 ring-1 ring-amber-100">
-                    Inactive
-                  </span>
-                )}
-              </div>
+        {visibleRooms.length === 0 ? (
+          <div className="px-6 py-14 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5Z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M9 21V12h6v9"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </div>
 
-            {/* Uses the SAME actions as admin.
-                These endpoints already allow super_admin, so no duplication needed. */}
-            <RoomRowActions room={r} />
+            <p className="text-sm font-semibold text-[var(--color-text-light)]">
+              {selectedVisibilityFilter === "all"
+                ? mode === "super_admin"
+                  ? "No rooms found"
+                  : "No rooms available in your scope"
+                : "No rooms found for the selected filter"}
+            </p>
+            <p className="mt-1 text-xs text-[var(--color-text-light)]/52">
+              {selectedVisibilityFilter === "all"
+                ? mode === "super_admin"
+                  ? "Create the first study room to begin managing availability and bookings."
+                  : "Ask a super admin to assign departments or rooms to your scope if needed."
+                : "Try a different status card or clear the active filters."}
+            </p>
           </div>
-        ))}
+        ) : (
+          <div className="divide-y divide-[var(--color-border-light)]">
+            {visibleRooms.map((r) => (
+              <div
+                key={r.id}
+                className="flex flex-col gap-4 px-5 py-5 transition-colors hover:bg-[var(--color-surface-light)]/55 sm:px-6 lg:flex-row lg:items-center lg:justify-between"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-semibold text-[var(--color-text-light)]">
+                        {r.name}
+                      </h3>
 
-        {rooms.length === 0 && (
-          <div className="p-6 text-sm text-slate-600">
-            {mode === "super_admin"
-              ? "No rooms found."
-              : "No rooms available in your scope."}
+                        {r.is_active === false ? (
+                          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                            Inactive
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                            Active
+                          </span>
+                        )}
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--color-text-light)]/65">
+                      <span>{r.building}</span>
+                      {r.floor ? <span>• Floor {r.floor}</span> : null}
+                      <span>• Capacity {r.capacity}</span>
+                      {r.department?.name ? <span>• {r.department.name}</span> : null}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(r.amenities ?? []).length > 0 ? (
+                        r.amenities.map((a) => (
+                          <span
+                            key={a}
+                            className="rounded-full border border-[var(--color-border-light)] bg-[var(--color-surface-light)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-light)]/72"
+                          >
+                            {a}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-[var(--color-text-light)]/45">
+                          No amenities listed
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="shrink-0">
+                  <RoomRowActions room={r} />
+                </div>
+              </div>
+            ))}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

@@ -35,6 +35,7 @@ export async function middleware(req: NextRequest) {
   );
 
   const pathname = req.nextUrl.pathname;
+  const isLoginPage = pathname.startsWith("/login");
 
   // Pages that require a logged-in user
   const isProtected =
@@ -59,18 +60,60 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/auth/callback") ||
     pathname.startsWith("/auth/continue");
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+const {
+  data: { user },
+} = await supabase.auth.getUser();
 
-  // Not logged in + trying to open a protected page
-  if (isProtected && !user) {
-    return NextResponse.redirect(withNext(req));
+const emailVerified = !!user?.email_confirmed_at;
+
+let accountStatus: "pending_verification" | "active" | "suspended" | null = null;
+if (user) {
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("account_status")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  accountStatus = (profileRow?.account_status ?? null) as
+    | "pending_verification"
+    | "active"
+    | "suspended"
+    | null;
+}
+
+  // Logged in but email not verified
+if (user && !emailVerified && !isAuthFlowPage && !isLoginPage) {
+  const url = req.nextUrl.clone();
+  url.pathname = "/verify";
+  url.searchParams.set("mode", "login");
+  if (user.email) {
+    url.searchParams.set("email", user.email);
   }
+  return NextResponse.redirect(url);
+}
+
+  // Logged in but profile is marked pending verification (enforce every-login verification)
+if (user && accountStatus === "pending_verification" && !isAuthFlowPage && !isLoginPage) {
+  const url = req.nextUrl.clone();
+  url.pathname = "/verify";
+  url.searchParams.set("mode", "login");
+  if (user.email) {
+    url.searchParams.set("email", user.email);
+  }
+  return NextResponse.redirect(url);
+}
+  // Not logged in + trying to open a protected page
+if (isProtected && !user) {
+  return NextResponse.redirect(withNext(req));
+}
 
   // Logged in users should not go back to login/signup
   // but they must still be allowed to use verify/reset/auth flow pages
   if (isGuestOnly && user) {
+    if (isLoginPage && (accountStatus === "pending_verification" || !emailVerified)) {
+      return res;
+    }
+
     const url = req.nextUrl.clone();
     url.pathname = "/auth/continue";
     return NextResponse.redirect(url);

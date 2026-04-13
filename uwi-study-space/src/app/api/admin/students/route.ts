@@ -29,7 +29,7 @@ export async function GET(req: Request) {
   const me = Array.isArray(meRows) ? meRows[0] : null;
   const role = (me?.role ?? null) as Role | null;
 
-  if (!role) {
+  if (role !== "admin" && role !== "super_admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -40,9 +40,15 @@ export async function GET(req: Request) {
 
   const { data, error } = await admin
     .from("profiles")
-    .select("id, full_name, uwi_id")
+    .select("id, email, full_name, uwi_id, phone, faculty, academic_status, role")
     .eq("role", "student")
-    .or([`full_name.ilike.%${q}%`, `uwi_id.ilike.%${q}%`].join(","))
+    .or(
+      [
+        `full_name.ilike.%${q}%`,
+        `email.ilike.%${q}%`,
+        `uwi_id.ilike.%${q}%`,
+      ].join(","),
+    )
     .order("full_name", { ascending: true })
     .limit(10);
 

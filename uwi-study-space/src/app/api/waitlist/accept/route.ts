@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   // Load waitlist row
   const { data: wl, error: wlErr } = await admin
     .from("waitlist")
-    .select("id, room_id, start_time, end_time, status, offer_expires_at, user_id")
+    .select("id, room_id, start_time, end_time, status, offer_expires_at, user_id, attendee_count")
     .eq("id", waitlistId)
     .single();
 
@@ -57,6 +57,7 @@ export async function POST(req: Request) {
     roomId: Number(wl.room_id),
     startISO: String(wl.start_time),
     endISO: String(wl.end_time),
+    attendeeCount: Number(wl.attendee_count ?? 1),
     bookedForUserId: user.id,
     isStudentSelfBooking: true,
   });
@@ -74,6 +75,7 @@ export async function POST(req: Request) {
       end_time: String(wl.end_time),
       status: "active",
       purpose: "Waitlist accepted",
+      attendee_count: Number(wl.attendee_count ?? 1),
       created_by: user.id,
       booked_for_user_id: user.id,
     })
