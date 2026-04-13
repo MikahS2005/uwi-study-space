@@ -115,6 +115,8 @@ export async function GET(req: Request) {
   const accountStatus: AccountStatus =
     existing?.account_status === "suspended"
       ? "suspended"
+      : existing?.account_status === "pending_verification"
+      ? "pending_verification"
       : emailConfirmedAt
       ? "active"
       : (existing?.account_status as AccountStatus | null) ?? "pending_verification";
@@ -146,6 +148,13 @@ export async function GET(req: Request) {
 
   if (!emailConfirmedAt) {
     return NextResponse.redirect(new URL("/verify", origin));
+  }
+
+  if (profileToSave.account_status === "pending_verification") {
+    const verifyUrl = new URL("/verify", origin);
+    verifyUrl.searchParams.set("mode", "login");
+    if (email) verifyUrl.searchParams.set("email", email);
+    return NextResponse.redirect(verifyUrl);
   }
 
   if (profileToSave.account_status === "suspended") {

@@ -54,9 +54,14 @@ export async function POST(req: Request) {
   const roomId = Number(body.roomId);
   const startISO = String(body.startISO ?? "");
   const endISO = String(body.endISO ?? "");
+  const attendeeCount = Number(body.attendeeCount ?? 1);
 
   if (!Number.isFinite(roomId) || !startISO || !endISO) {
     return NextResponse.json({ error: "Missing roomId/startISO/endISO" }, { status: 400 });
+  }
+
+  if (!Number.isInteger(attendeeCount) || attendeeCount < 1) {
+    return NextResponse.json({ error: "Attendee count must be at least 1." }, { status: 400 });
   }
 
   const settings = await getSettings();
@@ -117,6 +122,7 @@ export async function POST(req: Request) {
       room_id: roomId,
       start_time: startISO,
       end_time: endISO,
+      attendee_count: attendeeCount,
       user_id: user.id,
       status: "waiting",
       offer_expires_at: null,

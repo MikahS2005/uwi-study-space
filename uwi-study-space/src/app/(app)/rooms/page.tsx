@@ -16,7 +16,12 @@ import RoomCard from "@/components/rooms/RoomCard";
 import RoomsDatePicker from "@/components/rooms/RoomsDatePicker";
 import SlotPickerModalAutoOpen from "@/components/bookings/SlotPickerModalAutoOpen";
 
-import { getRoomsFiltered } from "@/lib/db/queries";
+import {
+  getRoomsFiltered,
+  getDepartmentFilterOptions,
+  getFloorFilterOptions,
+  getAmenityFilterOptions,
+} from "@/lib/db/queries";
 import { getSettings } from "@/lib/db/bookings";
 import { getRoomById } from "@/lib/db/rooms";
 import { getRoomAvailabilityForDate } from "@/lib/db/availability";
@@ -150,17 +155,70 @@ export default async function RoomsPage(props: {
   // ---------------------------
   // 1) Filters
   // ---------------------------
-  const building = typeof searchParams.building === "string" ? searchParams.building : undefined;
+  const departmentIdRaw =
+    typeof searchParams.departmentId === "string" ? searchParams.departmentId : undefined;
+  const floor = typeof searchParams.floor === "string" ? searchParams.floor : undefined;
   const amenity = typeof searchParams.amenity === "string" ? searchParams.amenity : undefined;
 
   const minCapacityRaw =
     typeof searchParams.minCapacity === "string" ? searchParams.minCapacity : undefined;
   const minCapacityNum = minCapacityRaw ? Number(minCapacityRaw) : undefined;
 
+  const maxCapacityRaw =
+    typeof searchParams.maxCapacity === "string" ? searchParams.maxCapacity : undefined;
+  const maxCapacityNum = maxCapacityRaw ? Number(maxCapacityRaw) : undefined;
+
+  const departmentIdNum = departmentIdRaw ? Number(departmentIdRaw) : undefined;
+
+  // Fetch filter dropdown options server-side
+  const [departmentOptions, floorOptions, amenityOptions] = await Promise.all([
+    getDepartmentFilterOptions(),
+    getFloorFilterOptions(),
+    getAmenityFilterOptions(),
+  ]);
+
   const rooms = await getRoomsFiltered({
-    building: building?.trim() || undefined,
-    amenity: amenity?.trim() || undefined,
+    departmentId: Number.isFinite(departmentIdNum) ? departmentIdNum : undefined,
+    floor: floor?.trim() || undefined,
     minCapacity: Number.isFinite(minCapacityNum) ? minCapacityNum : undefined,
+    maxCapacity: Number.isFinite(maxCapacityNum) ? maxCapacityNum : undefined,
+    amenity: amenity?.trim() || undefined,
+  });
+
+  // Fallback: Extract filter options from rooms data if not found
+  const allRooms = await getRoomsFiltered({});
+  
+  console.log('[RoomsPage] allRooms count:', allRooms.length);
+  console.log('[RoomsPage] departmentOptions before fallback:', departmentOptions.length);
+  console.log('[RoomsPage] First room:', allRooms[0]);
+  
+  // Build enriched options with fallbacks
+  const enrichedDepartmentOptions = departmentOptions.length > 0 ? departmentOptions : 
+    Array.from(new Map(allRooms
+      .filter((r: any) => r.department && r.department.id && r.department.name)
+      .map((r: any) => [r.department.id, { id: r.department.id, name: r.department.name }])
+    ).values())
+    .sort((a, b) => a.name.localeCompare(b.name));
+  
+  const enrichedFloorOptions = floorOptions.length > 0 ? floorOptions :
+    Array.from(new Set(allRooms
+      .filter((r: any) => r.floor && String(r.floor).trim())
+      .map((r: any) => String(r.floor).trim())
+    )).sort();
+  
+  const enrichedAmenityOptions = amenityOptions.length > 0 ? amenityOptions :
+    Array.from(new Set(allRooms
+      .flatMap((r: any) => Array.isArray(r.amenities) ? r.amenities : [])
+      .filter((a: any) => a && String(a).trim())
+      .map((a: any) => String(a).trim())
+    )).sort();
+
+  // Debug: Log what we're sending to component
+  console.log('[RoomsPage] Filter options being sent:', {
+    departments: enrichedDepartmentOptions.length,
+    floors: enrichedFloorOptions.length,
+    amenities: enrichedAmenityOptions.length,
+    totalRooms: allRooms.length,
   });
 
   // ---------------------------
@@ -228,28 +286,55 @@ const selectedDate = normalizeBookableDate(
   const { dayStartUtcISO, dayEndUtcISO } = ttDayBoundsUtcISO(selectedDate);
 
   // If no rooms, avoid .in([]) issues
-  const hoursRows =
-    roomIds.length === 0
-      ? []
-      : (
-          await supabase
-            .from("room_opening_hours")
-            .select("room_id, open_minute, close_minute, is_closed")
-            .in("room_id", roomIds)
-            .eq("day_of_week", dow)
-        ).data ?? [];
+  let hoursRows: any[] = [];
+  let blackouts: any[] = [];
 
-  const blackouts =
-    roomIds.length === 0
-      ? []
-      : (
-          await supabase
-            .from("room_blackouts")
-            .select("room_id, reason, start_time, end_time")
-            .in("room_id", roomIds)
-            .lt("start_time", dayEndUtcISO)
-            .gt("end_time", dayStartUtcISO)
-        ).data ?? [];
+  if (roomIds.length > 0) {
+    console.log('[RoomsPage] Querying room_opening_hours for', roomIds.length, 'rooms, dow=', dow);
+    try {
+      const { data: hoursData, error: hoursError } = await supabase
+        .from("room_opening_hours")
+        .select("room_id, open_minute, close_minute, is_closed")
+        .in("room_id", roomIds)
+        .eq("day_of_week", dow);
+      
+      if (hoursError) {
+        console.error('[RoomsPage] room_opening_hours error:', {
+          message: hoursError.message,
+          code: hoursError.code,
+          details: hoursError.details,
+        });
+      } else {
+        hoursRows = hoursData ?? [];
+        console.log('[RoomsPage] room_opening_hours returned:', hoursRows.length, 'rows');
+      }
+    } catch (err) {
+      console.error('[RoomsPage] room_opening_hours exception:', err);
+    }
+
+    console.log('[RoomsPage] Querying room_blackouts for', roomIds.length, 'rooms');
+    try {
+      const { data: blackoutsData, error: blackoutsError } = await supabase
+        .from("room_blackouts")
+        .select("room_id, reason, start_time, end_time")
+        .in("room_id", roomIds)
+        .lt("start_time", dayEndUtcISO)
+        .gt("end_time", dayStartUtcISO);
+      
+      if (blackoutsError) {
+        console.error('[RoomsPage] room_blackouts error:', {
+          message: blackoutsError.message,
+          code: blackoutsError.code,
+          details: blackoutsError.details,
+        });
+      } else {
+        blackouts = blackoutsData ?? [];
+        console.log('[RoomsPage] room_blackouts returned:', blackouts.length, 'rows');
+      }
+    } catch (err) {
+      console.error('[RoomsPage] room_blackouts exception:', err);
+    }
+  }
 
   // Build maps for fast lookup
   const hoursMap = new Map<number, { open_minute: number; close_minute: number; is_closed: boolean }>();
@@ -328,7 +413,11 @@ const selectedDate = normalizeBookableDate(
     <RoomsDatePicker maxDaysAhead={settingsForPicker.max_booking_window_days} />
   </section>
 
-  <RoomFilters />
+  <RoomFilters
+    departments={enrichedDepartmentOptions}
+    floors={enrichedFloorOptions}
+    amenities={enrichedAmenityOptions}
+  />
 
   {bookingDTO ? <SlotPickerModalAutoOpen dto={bookingDTO} /> : null}
 
@@ -362,9 +451,11 @@ const selectedDate = normalizeBookableDate(
             key={String(r.id)}
             room={r}
             preserve={{
-              building: building?.trim() || undefined,
+              floor: floor?.trim() || undefined,
               amenity: amenity?.trim() || undefined,
               minCapacityRaw,
+              maxCapacityRaw,
+              departmentIdRaw,
               date: selectedDate,
             }}
             status={Number.isFinite(rid) ? computeStatus(rid) : undefined}

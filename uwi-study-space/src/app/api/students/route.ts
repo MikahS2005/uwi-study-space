@@ -28,8 +28,8 @@ export async function GET(req: Request) {
   const me = Array.isArray(meRows) ? meRows[0] : null;
   const role = (me?.role ?? null) as Role | null;
 
-  // admin-only endpoint
-  if (role !== "admin" && role !== "super_admin") {
+  // student booking attendees can look up existing accounts by student ID
+  if (role !== "student" && role !== "staff" && role !== "admin" && role !== "super_admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -40,16 +40,9 @@ export async function GET(req: Request) {
 
   const { data, error } = await admin
     .from("profiles")
-    .select("id, email, full_name, uwi_id, phone, faculty, academic_status, role")
+    .select("id, uwi_id")
     .eq("role", "student")
-    .or(
-      [
-        `full_name.ilike.%${q}%`,
-        `email.ilike.%${q}%`,
-        `uwi_id.ilike.%${q}%`,
-      ].join(","),
-    )
-    .order("full_name", { ascending: true })
+    .eq("uwi_id", q)
     .limit(10);
 
   if (error) {

@@ -491,18 +491,6 @@ export default function SuperAdminSettingsPage() {
           </SettingField>
 
           <SettingField
-            label="Max days ahead"
-            hint="How many days in the future students are permitted to book."
-          >
-            <NumberInput
-              value={form.max_days_ahead}
-              onChange={(v) => set("max_days_ahead", v)}
-              min={0}
-              max={30}
-            />
-          </SettingField>
-
-          <SettingField
             label="Max booking window (days)"
             hint="Alternative advance-booking cap used by some interfaces."
           >

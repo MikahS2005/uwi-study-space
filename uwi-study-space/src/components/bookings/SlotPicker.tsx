@@ -19,7 +19,6 @@ type Slot = {
 
 type StudentSearchRow = {
   id: string;
-  full_name: string | null;
   uwi_id: string | null;
 };
 
@@ -153,8 +152,8 @@ function selectMemberSearchResult(index: number, row: StudentSearchRow) {
             ...m,
             mode: "search",
             profileUserId: row.id,
-            searchQuery: row.full_name ?? "",
-            fullName: row.full_name ?? "",
+            searchQuery: row.uwi_id ?? "",
+            fullName: "",
             studentId: row.uwi_id ?? "",
           }
         : m,
@@ -407,6 +406,7 @@ async function joinWaitlist() {
         roomId,
         startISO: bookingRange.start,
         endISO: bookingRange.end,
+        attendeeCount,
       }),
     });
 
@@ -561,16 +561,22 @@ const attendeeCount = 1 + normalizedMembers.length;
         {member.mode === "search" ? (
           <div>
             <label className="block text-xs font-medium text-[#1F2937] opacity-70">
-              Search by name or ID
+              Search by student ID
             </label>
 
             <input
               className="mt-1 w-full rounded-lg border border-[#E5E7EB] px-3 py-2 text-sm text-[#1F2937] outline-none focus:ring-2 focus:ring-[#003595]/10"
-              placeholder="Search by name or ID"
+              placeholder="Enter student ID"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={member.searchQuery}
               onChange={(e) => updateMember(index, "searchQuery", e.target.value)}
               disabled={submitting}
             />
+
+            <p className="mt-1 text-xs text-slate-500">
+              Enter the full student ID. Only exact matches to existing accounts are returned.
+            </p>
 
             <div className="mt-2 rounded-xl border border-[#E5E7EB]">
               {memberLoading[index] ? (
@@ -587,9 +593,6 @@ const attendeeCount = 1 + normalizedMembers.length;
                       className="w-full border-b px-3 py-2 text-left last:border-b-0 hover:bg-slate-50"
                     >
                       <div className="text-sm font-medium text-slate-900">
-                        {row.full_name || "Unnamed student"}
-                      </div>
-                      <div className="text-xs text-slate-500">
                         ID: {row.uwi_id || "—"}
                       </div>
                     </button>
@@ -598,10 +601,9 @@ const attendeeCount = 1 + normalizedMembers.length;
               )}
             </div>
 
-            {(member.fullName || member.studentId) && (
+            {member.studentId && (
               <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                <div className="font-medium">{member.fullName || "—"}</div>
-                <div className="text-xs text-slate-500">ID: {member.studentId || "—"}</div>
+                <div className="font-medium">Student ID: {member.studentId || "—"}</div>
               </div>
             )}
           </div>

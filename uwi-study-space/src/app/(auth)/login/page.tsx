@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
+import { getPublicAppOrigin } from "@/lib/utils/publicOrigin";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,31 +18,76 @@ export default function LoginPage() {
   const next = searchParams.get("next");
   const queryError = searchParams.get("error");
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setLocalError(null);
+async function onSubmit(e: React.FormEvent) {
+  e.preventDefault();
+  setLoading(true);
+  setLocalError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    });
+  const normalizedEmail = email.trim().toLowerCase();
 
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: normalizedEmail,
+    password,
+  });
+
+  if (error) {
     setLoading(false);
+    setLocalError(error.message);
+    return;
+  }
 
-    if (error) {
-      setLocalError(error.message);
-      return;
-    }
+  const { data: profileRow, error: profileError } = await supabase
+    .from("profiles")
+    .select("account_status")
+    .eq("id", data.user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    await supabase.auth.signOut();
+    setLoading(false);
+    setLocalError("Could not verify account status. Please try again.");
+    return;
+  }
+
+  const isVerified = !!data.user?.email_confirmed_at;
+  const isPendingVerification = profileRow?.account_status === "pending_verification";
+
+  if (!isVerified || isPendingVerification) {
+    await supabase.auth.signOut();
 
     const target = next
       ? `/auth/continue?next=${encodeURIComponent(next)}`
       : "/auth/continue";
 
-    router.push(target);
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: {
+        emailRedirectTo: `${getPublicAppOrigin()}/auth/callback?next=${encodeURIComponent(target)}`,
+        shouldCreateUser: false,
+      },
+    });
+
+    if (otpError) {
+      setLoading(false);
+      setLocalError(otpError.message);
+      return;
+    }
+
+    setLoading(false);
+    router.push(`/verify?mode=login&email=${encodeURIComponent(normalizedEmail)}`);
     router.refresh();
+    return;
   }
 
+  setLoading(false);
+
+  const target = next
+    ? `/auth/continue?next=${encodeURIComponent(next)}`
+    : "/auth/continue";
+
+  router.push(target);
+  router.refresh();
+}
   return (
     <div className="rounded-lg border p-6">
       <h1 className="text-xl font-semibold">Login</h1>

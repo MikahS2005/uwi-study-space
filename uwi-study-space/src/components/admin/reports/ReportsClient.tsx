@@ -292,69 +292,69 @@ export default function ReportsClient({
 
   return (
     <div className="space-y-4">
-      <div className={sectionCardClass()}>
-        <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="overflow-hidden rounded-[28px] border border-[var(--color-border-light)] bg-white shadow-[0_12px_35px_rgba(17,24,39,0.06)]">
+        <div className="flex flex-col gap-4 border-b border-[var(--color-border-light)] bg-[var(--color-surface-light)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           {showPageHeader ? (
             <div>
-              <h1 className="text-lg font-semibold text-slate-900">{title}</h1>
-              <p className="text-sm text-slate-600">
+              <h1 className="text-sm font-semibold text-[var(--color-text-light)] sm:text-base">{title}</h1>
+              <p className="mt-1 text-sm text-[var(--color-text-light)]/62">
                 Visual summary for bookings and waitlist activity across the selected report window.
               </p>
             </div>
           ) : null}
 
-          <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-wrap items-end gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600">From</label>
+              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-light)]/55">
+                From
+              </label>
               <input
                 type="date"
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
-                className="mt-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-blue-200 focus:ring-2"
+                className="h-11 rounded-xl border border-[var(--color-border-light)] bg-white px-3 text-sm text-[var(--color-text-light)] outline-none transition-colors focus:border-[var(--color-primary)]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-600">To</label>
+              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-light)]/55">
+                To
+              </label>
               <input
                 type="date"
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
-                className="mt-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-blue-200 focus:ring-2"
+                className="h-11 rounded-xl border border-[var(--color-border-light)] bg-white px-3 text-sm text-[var(--color-text-light)] outline-none transition-colors focus:border-[var(--color-primary)]"
               />
             </div>
 
             <button
               onClick={fetchReports}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-[var(--color-primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-dark)]"
             >
-              Apply
+              Apply Filters
             </button>
           </div>
         </div>
+      </div>
 
-        {err ? (
-          <div className="mt-4 rounded-xl bg-rose-50 p-4 text-sm text-rose-700 ring-1 ring-rose-200">
-            {err}
-          </div>
-        ) : loading ? (
-          <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-200">
-            Loading…
-          </div>
-        ) : data ? (
-          <div className="mt-5 space-y-6">
+      {err ? (
+        <div className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700 ring-1 ring-rose-200">
+          {err}
+        </div>
+      ) : loading ? (
+        <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 ring-1 ring-slate-200">
+          Loading…
+        </div>
+      ) : data ? (
+        <div className="space-y-6">
             <div>
   {/* PRIMARY KPI GRID */}
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+  <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]">
     <StatCard 
       label="Bookings (Total)" value={data.bookings.total} icon={<BookOpen size={20}/>}
       subtext={`Scope rooms: ${data.scope.allowedRoomCount ?? 'All'}`}
       borderColor="bg-blue-600" color="text-blue-600" bgColor="bg-blue-50"
-    />
-    <StatCard 
-      label="Waitlist (Total)" value={data.waitlist.total} icon={<Clock size={20}/>}
-      subtext={`Range: ${data.range.from} → ${data.range.to}`}
-      borderColor="bg-indigo-500" color="text-indigo-600" bgColor="bg-indigo-50"
     />
     <StatCard 
       label="Waitlist (Total)" value={data.waitlist.total} icon={<Clock size={20}/>}
@@ -885,8 +885,7 @@ export default function ReportsClient({
               </div>
             </div>
           </div>
-        ) : null}
-      </div>
+      ) : null}
     </div>
   );
 }

@@ -38,11 +38,13 @@ export function ProfileCompletionGate() {
 
       if (skip) return;
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!user || !mounted) return;
+    if (!user || !mounted) return;
+
+    if (!user.email_confirmed_at) return;
 
       const { data: profile, error } = await supabase
         .from("profiles")

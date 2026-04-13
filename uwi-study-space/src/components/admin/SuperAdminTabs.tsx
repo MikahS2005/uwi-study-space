@@ -3,31 +3,31 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type Tab = { href: string; label: string };
-
-type SuperAdminTabsProps = {
-  tabs: Tab[];
+type Tab = {
+  href: string;
+  label: string;
 };
 
-export function SuperAdminTabs({ tabs }: SuperAdminTabsProps) {
+export function SuperAdminTabs({ tabs }: { tabs: Tab[] }) {
   const pathname = usePathname();
 
   return (
     <>
-      {tabs.map((t) => {
-        const active = pathname === t.href || pathname.startsWith(t.href + "/");
+      {tabs.map((tab) => {
+        const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+
         return (
           <Link
-            key={t.href}
-            href={t.href}
+            key={tab.href}
+            href={tab.href}
             className={[
-              "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
+              "inline-flex items-center rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
               active
-                ? "bg-white shadow-sm ring-1 ring-slate-200 text-slate-900"
-                : "text-slate-600 hover:bg-white/60 hover:text-slate-900",
+                ? "border border-[var(--color-primary)]/12 bg-white text-[var(--color-primary)] shadow-sm"
+                : "border border-transparent bg-transparent text-[var(--color-text-light)]/70 hover:border-[var(--color-border-light)] hover:bg-white hover:text-[var(--color-primary)]",
             ].join(" ")}
           >
-            {t.label}
+            {tab.label}
           </Link>
         );
       })}
