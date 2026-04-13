@@ -13,32 +13,38 @@
 // via lib/db and render the same UI consistently.
 
 import { getRoomsForRoomsManagement } from "@/lib/db/rooms";
+import { getDepartmentOptionsForRoomsManagement } from "@/lib/db/rooms";
 import { RoomRowActions } from "@/components/admin/RoomRowActions";
 import { NewRoomButton } from "@/components/admin/NewRoomButton";
 import AdminSectionBanner from "@/components/admin/shared/AdminSectionBanner";
+import Link from "next/link";
 
 export type RoomsManagementMode = "admin" | "super_admin";
+type RoomsVisibilityFilter = "all" | "active" | "inactive" | "with_amenities";
 
 function StatCard({
   label,
   value,
-  accent = false,
+  href,
+  active,
 }: {
   label: string;
   value: number;
-  accent?: boolean;
+  href: string;
+  active: boolean;
 }) {
   return (
-    <div
+    <Link
+      href={href}
       className={`rounded-2xl border px-4 py-3 ${
-        accent
+        active
           ? "border-[var(--color-primary)]/15 bg-[var(--color-primary-soft)]"
-          : "border-[var(--color-border-light)] bg-white"
+          : "border-[var(--color-border-light)] bg-white hover:border-[var(--color-primary)]/20 hover:bg-[var(--color-surface-light)]"
       }`}
     >
       <p
         className={`text-[10px] font-bold uppercase tracking-[0.15em] ${
-          accent
+          active
             ? "text-[var(--color-primary)]/70"
             : "text-[var(--color-text-light)]/45"
         }`}
@@ -48,21 +54,30 @@ function StatCard({
       <p
         style={{ fontFamily: "Georgia, serif" }}
         className={`mt-0.5 text-2xl font-bold ${
-          accent
+          active
             ? "text-[var(--color-primary)]"
             : "text-[var(--color-text-light)]"
         }`}
       >
         {value}
       </p>
-    </div>
+    </Link>
   );
 }
 
-export async function RoomsManagementPage(props: { mode: RoomsManagementMode }) {
-  const { mode } = props;
+export async function RoomsManagementPage(props: {
+  mode: RoomsManagementMode;
+  selectedDepartmentId?: number;
+  selectedVisibilityFilter?: RoomsVisibilityFilter;
+}) {
+  const { mode, selectedDepartmentId, selectedVisibilityFilter = "all" } = props;
 
-  const rooms = await getRoomsForRoomsManagement({ mode });
+  const [rooms, departmentOptions] = await Promise.all([
+    getRoomsForRoomsManagement({ mode, departmentId: selectedDepartmentId }),
+    getDepartmentOptionsForRoomsManagement({ mode }),
+  ]);
+
+  const basePath = mode === "super_admin" ? "/super-admin/rooms" : "/admin/rooms";
 
   const description =
     mode === "super_admin"
@@ -72,10 +87,24 @@ export async function RoomsManagementPage(props: { mode: RoomsManagementMode }) 
   const totalRooms = rooms.length;
   const inactiveRooms = rooms.filter((r) => r.is_active === false).length;
   const activeRooms = totalRooms - inactiveRooms;
+  const roomsWithAmenities = rooms.filter((r) => (r.amenities ?? []).length > 0).length;
 
-  const totalAmenities = new Set(
-    rooms.flatMap((r) => (Array.isArray(r.amenities) ? r.amenities : [])),
-  ).size;
+  const visibleRooms =
+    selectedVisibilityFilter === "active"
+      ? rooms.filter((r) => r.is_active !== false)
+      : selectedVisibilityFilter === "inactive"
+        ? rooms.filter((r) => r.is_active === false)
+        : selectedVisibilityFilter === "with_amenities"
+          ? rooms.filter((r) => (r.amenities ?? []).length > 0)
+          : rooms;
+
+  function withFilters(visibility: RoomsVisibilityFilter) {
+    const params = new URLSearchParams();
+    if (selectedDepartmentId) params.set("departmentId", String(selectedDepartmentId));
+    if (visibility !== "all") params.set("visibility", visibility);
+    const q = params.toString();
+    return q ? `${basePath}?${q}` : basePath;
+  }
 
   return (
     <div className="space-y-6">
@@ -88,14 +117,90 @@ export async function RoomsManagementPage(props: { mode: RoomsManagementMode }) 
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Total Rooms" value={totalRooms} accent />
-        <StatCard label="Active" value={activeRooms} />
-        <StatCard label="Inactive" value={inactiveRooms} />
-        <StatCard label="Amenities" value={totalAmenities} />
+        <StatCard
+          label="Total Rooms"
+          value={totalRooms}
+          href={withFilters("all")}
+          active={selectedVisibilityFilter === "all"}
+        />
+        <StatCard
+          label="Active"
+          value={activeRooms}
+          href={withFilters("active")}
+          active={selectedVisibilityFilter === "active"}
+        />
+        <StatCard
+          label="Inactive"
+          value={inactiveRooms}
+          href={withFilters("inactive")}
+          active={selectedVisibilityFilter === "inactive"}
+        />
+        <StatCard
+          label="Amenities"
+          value={roomsWithAmenities}
+          href={withFilters("with_amenities")}
+          active={selectedVisibilityFilter === "with_amenities"}
+        />
+      </div>
+
+      <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#E5E7EB] bg-[#F9FAFB] flex items-center justify-between">
+          <h2 className="text-xs font-bold tracking-[0.12em] uppercase text-[#374151]">
+            Filter Rooms
+          </h2>
+
+          <div className="shrink-0">
+            <NewRoomButton />
+          </div>
+        </div>
+
+        <form className="px-5 py-4 flex flex-col gap-2 sm:flex-row sm:items-end" method="get" action={basePath}>
+          {selectedVisibilityFilter !== "all" ? (
+            <input type="hidden" name="visibility" value={selectedVisibilityFilter} />
+          ) : null}
+
+          <div className="w-full sm:w-52">
+            <label
+              htmlFor="rooms-department-filter"
+              className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#9CA3AF]"
+            >
+              Department
+            </label>
+            <select
+              id="rooms-department-filter"
+              name="departmentId"
+              defaultValue={selectedDepartmentId ? String(selectedDepartmentId) : ""}
+              className="mt-1.5 h-10 w-full rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-sm text-[#1F2937] outline-none transition focus:border-[#003595] focus:ring-2 focus:ring-[#003595]/10"
+            >
+              <option value="">All departments</option>
+              {departmentOptions.map((dept) => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            className="h-10 rounded-xl bg-[#003595] px-5 text-sm font-semibold text-white transition hover:bg-[#002366]"
+          >
+            Apply Filters
+          </button>
+
+          {selectedDepartmentId || selectedVisibilityFilter !== "all" ? (
+            <Link
+              href={basePath}
+              className="inline-flex h-10 items-center rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-4 text-sm font-semibold text-[#374151] transition hover:bg-white"
+            >
+              Clear
+            </Link>
+          ) : null}
+        </form>
       </div>
 
       <section className="overflow-hidden rounded-[28px] border border-[var(--color-border-light)] bg-white shadow-[0_12px_35px_rgba(17,24,39,0.06)]">
-        <div className="flex flex-col gap-4 border-b border-[var(--color-border-light)] bg-[var(--color-surface-light)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="border-b border-[var(--color-border-light)] bg-[var(--color-surface-light)] px-5 py-4 sm:px-6">
           <div>
             <h2 className="text-sm font-semibold text-[var(--color-text-light)] sm:text-base">
               Rooms Directory
@@ -106,13 +211,9 @@ export async function RoomsManagementPage(props: { mode: RoomsManagementMode }) 
                 : `${rooms.length} room(s) visible within your assigned scope.`}
             </p>
           </div>
-
-          <div className="shrink-0">
-            <NewRoomButton />
-          </div>
         </div>
 
-        {rooms.length === 0 ? (
+        {visibleRooms.length === 0 ? (
           <div className="px-6 py-14 text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -132,19 +233,23 @@ export async function RoomsManagementPage(props: { mode: RoomsManagementMode }) 
             </div>
 
             <p className="text-sm font-semibold text-[var(--color-text-light)]">
-              {mode === "super_admin"
-                ? "No rooms found"
-                : "No rooms available in your scope"}
+              {selectedVisibilityFilter === "all"
+                ? mode === "super_admin"
+                  ? "No rooms found"
+                  : "No rooms available in your scope"
+                : "No rooms found for the selected filter"}
             </p>
             <p className="mt-1 text-xs text-[var(--color-text-light)]/52">
-              {mode === "super_admin"
-                ? "Create the first study room to begin managing availability and bookings."
-                : "Ask a super admin to assign departments or rooms to your scope if needed."}
+              {selectedVisibilityFilter === "all"
+                ? mode === "super_admin"
+                  ? "Create the first study room to begin managing availability and bookings."
+                  : "Ask a super admin to assign departments or rooms to your scope if needed."
+                : "Try a different status card or clear the active filters."}
             </p>
           </div>
         ) : (
           <div className="divide-y divide-[var(--color-border-light)]">
-            {rooms.map((r) => (
+            {visibleRooms.map((r) => (
               <div
                 key={r.id}
                 className="flex flex-col gap-4 px-5 py-5 transition-colors hover:bg-[var(--color-surface-light)]/55 sm:px-6 lg:flex-row lg:items-center lg:justify-between"

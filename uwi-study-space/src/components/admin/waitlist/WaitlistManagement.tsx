@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatTtDateTime } from "@/lib/utils/datetime";
 import ExpiryCountdown from "@/components/shared/ExpiryCountdown";
+import { CAMPUS_TZ } from "@/lib/utils/datetime";
 
 type Mode = "admin" | "super_admin";
 
@@ -283,6 +284,8 @@ export default function WaitlistManagement({
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | Row["status"]>("all");
+  const [dateDraft, setDateDraft] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
   const [offeringId, setOfferingId] = useState<number | null>(null);
   const [offerTarget, setOfferTarget] = useState<Row | null>(null);
   const [toast, setToast] = useState<{
@@ -348,10 +351,33 @@ export default function WaitlistManagement({
     }
   }
 
+  function toTtDateYmd(iso: string) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: CAMPUS_TZ,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date(iso));
+
+    const yyyy = parts.find((p) => p.type === "year")?.value ?? "1970";
+    const mm = parts.find((p) => p.type === "month")?.value ?? "01";
+    const dd = parts.find((p) => p.type === "day")?.value ?? "01";
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
   const filteredRows = useMemo(() => {
-    if (statusFilter === "all") return rows;
-    return rows.filter((row) => row.status === statusFilter);
-  }, [rows, statusFilter]);
+    let list = rows;
+
+    if (statusFilter !== "all") {
+      list = list.filter((row) => row.status === statusFilter);
+    }
+
+    if (dateFilter) {
+      list = list.filter((row) => toTtDateYmd(row.start_time) === dateFilter);
+    }
+
+    return list;
+  }, [rows, statusFilter, dateFilter]);
 
   const counts = useMemo(
     () => ({
@@ -445,6 +471,55 @@ export default function WaitlistManagement({
               setStatusFilter(statusFilter === "expired" ? "all" : "expired")
             }
           />
+        </div>
+
+        <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-[#E5E7EB] bg-[#F9FAFB]">
+            <h2 className="text-xs font-bold tracking-[0.12em] uppercase text-[#374151]">
+              Filter Waitlist
+            </h2>
+          </div>
+
+          <form
+            className="px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-end"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setDateFilter(dateDraft);
+            }}
+          >
+            <div className="w-full sm:w-52">
+              <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#9CA3AF]">
+                Date
+              </label>
+              <input
+                type="date"
+                value={dateDraft}
+                onChange={(e) => setDateDraft(e.target.value)}
+                className="mt-1.5 h-10 w-full rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-sm text-[#1F2937] outline-none transition focus:border-[#003595] focus:ring-2 focus:ring-[#003595]/10"
+                aria-label="Filter by date"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-[#003595] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#002366]"
+            >
+              Apply Filters
+            </button>
+
+            {dateFilter ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilter("");
+                  setDateDraft("");
+                }}
+                className="inline-flex h-10 items-center justify-center rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-4 text-xs font-semibold text-[#374151] transition hover:bg-white"
+              >
+                Clear
+              </button>
+            ) : null}
+          </form>
         </div>
 
         <div className="overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
@@ -630,7 +705,8 @@ export default function WaitlistManagement({
               <p className="text-xs text-[#9CA3AF]">
                 {filteredRows.length} waitlist entr{filteredRows.length === 1 ? "y" : "ies"}{" "}
                 displayed
-                {statusFilter !== "all" ? ` · filtered by ${statusFilter}` : ""}
+                {statusFilter !== "all" ? ` · status: ${statusFilter}` : ""}
+                {dateFilter ? ` · date: ${dateFilter}` : ""}
               </p>
             </div>
           ) : null}

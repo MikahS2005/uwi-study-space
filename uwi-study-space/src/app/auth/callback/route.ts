@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 function getPublicOrigin(req: Request) {
   const url = new URL(req.url);
@@ -56,6 +57,15 @@ export async function GET(req: Request) {
       account_status: "active",
     })
     .eq("id", user.id);
+
+  const admin = createSupabaseAdmin();
+  const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+  await admin.auth.admin.updateUserById(user.id, {
+    user_metadata: {
+      ...metadata,
+      logout_count_since_reverify: 0,
+    },
+  });
 
   return NextResponse.redirect(new URL(next, origin));
 }

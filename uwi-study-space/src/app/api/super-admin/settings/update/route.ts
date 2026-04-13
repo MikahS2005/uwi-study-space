@@ -20,6 +20,7 @@ type Body = Partial<{
   max_booking_window_days: number;
   max_booking_duration_hours: number;
   max_consecutive_hours: number;
+  reverify_after_logout_count: number;
 }>;
 
 /**
@@ -88,6 +89,7 @@ export async function POST(req: Request) {
   allowInt("max_booking_window_days");
   allowInt("max_booking_duration_hours");
   allowInt("max_consecutive_hours");
+  allowInt("reverify_after_logout_count");
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });

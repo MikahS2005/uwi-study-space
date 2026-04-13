@@ -292,49 +292,53 @@ export default function ReportsClient({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-[28px] border border-[var(--color-border-light)] bg-white shadow-[0_12px_35px_rgba(17,24,39,0.06)]">
-        <div className="flex flex-col gap-4 border-b border-[var(--color-border-light)] bg-[var(--color-surface-light)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          {showPageHeader ? (
-            <div>
-              <h1 className="text-sm font-semibold text-[var(--color-text-light)] sm:text-base">{title}</h1>
-              <p className="mt-1 text-sm text-[var(--color-text-light)]/62">
-                Visual summary for bookings and waitlist activity across the selected report window.
-              </p>
-            </div>
-          ) : null}
+      {showPageHeader ? (
+        <div className="rounded-[28px] border border-[var(--color-border-light)] bg-white px-5 py-4 shadow-[0_12px_35px_rgba(17,24,39,0.06)] sm:px-6">
+          <h1 className="text-sm font-semibold text-[var(--color-text-light)] sm:text-base">{title}</h1>
+          <p className="mt-1 text-sm text-[var(--color-text-light)]/62">
+            Visual summary for bookings and waitlist activity across the selected report window.
+          </p>
+        </div>
+      ) : null}
 
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-light)]/55">
-                From
-              </label>
-              <input
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="h-11 rounded-xl border border-[var(--color-border-light)] bg-white px-3 text-sm text-[var(--color-text-light)] outline-none transition-colors focus:border-[var(--color-primary)]"
-              />
-            </div>
+      <div className="bg-white rounded-xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-[#E5E7EB] bg-[#F9FAFB]">
+          <h2 className="text-xs font-bold tracking-[0.12em] uppercase text-[#374151]">
+            Filter Reports
+          </h2>
+        </div>
 
-            <div>
-              <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--color-text-light)]/55">
-                To
-              </label>
-              <input
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className="h-11 rounded-xl border border-[var(--color-border-light)] bg-white px-3 text-sm text-[var(--color-text-light)] outline-none transition-colors focus:border-[var(--color-primary)]"
-              />
-            </div>
-
-            <button
-              onClick={fetchReports}
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-[var(--color-primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-dark)]"
-            >
-              Apply Filters
-            </button>
+        <div className="px-5 py-4 flex flex-wrap items-end gap-3">
+          <div>
+            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#9CA3AF]">
+              From
+            </label>
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-sm text-[#1F2937] outline-none transition focus:border-[#003595] focus:ring-2 focus:ring-[#003595]/10"
+            />
           </div>
+
+          <div>
+            <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#9CA3AF]">
+              To
+            </label>
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className="h-10 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] px-3 text-sm text-[#1F2937] outline-none transition focus:border-[#003595] focus:ring-2 focus:ring-[#003595]/10"
+            />
+          </div>
+
+          <button
+            onClick={fetchReports}
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-[#003595] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#002366]"
+          >
+            Apply Filters
+          </button>
         </div>
       </div>
 

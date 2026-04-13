@@ -144,6 +144,75 @@ function ToggleConfirmModal({
   );
 }
 
+function DeleteConfirmModal({
+  open,
+  room,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  room: RoomRow | null;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  if (!open || !room) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-[2px] p-4"
+      onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
+    >
+      <div className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-[#E5E7EB] overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#E5E7EB] bg-[#FFF1F2]">
+          <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-[#BE123C] mb-0.5">
+            Destructive Action
+          </p>
+          <h2
+            style={{ fontFamily: "Georgia, serif" }}
+            className="text-lg font-bold text-[#1F2937]"
+          >
+            Delete Room
+          </h2>
+          <p className="mt-0.5 text-xs text-[#6B7280]">{room.name}</p>
+        </div>
+
+        <div className="px-5 py-4">
+          <p className="text-sm text-[#374151] leading-relaxed">
+            This will permanently remove <span className="font-semibold">{room.name}</span>.
+            This action cannot be undone.
+          </p>
+          <p className="mt-2 text-xs text-[#6B7280]">
+            Rooms with existing booking or waitlist history cannot be deleted.
+          </p>
+        </div>
+
+        <div className="flex gap-2.5 px-5 pb-5">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="flex-1 rounded-lg border border-[#E5E7EB] bg-white py-2.5 text-sm font-semibold text-[#374151] hover:bg-[#F3F4F6] disabled:opacity-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try { await onConfirm(); }
+              finally { setBusy(false); }
+            }}
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 py-2.5 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50 transition-colors"
+          >
+            {busy ? <><Spinner light size={14} />Deleting…</> : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────────────────────────
    Main export
 ───────────────────────────────────────────────────────────── */
@@ -153,6 +222,8 @@ export function RoomRowActions({ room }: { room: RoomRow }) {
   const [editOpen, setEditOpen] = useState(false);
   const [toggleBusy, setToggleBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const isActive = room.is_active !== false;
 
@@ -179,6 +250,30 @@ export function RoomRowActions({ room }: { room: RoomRow }) {
       alert(e?.message ?? "Something went wrong.");
     } finally {
       setToggleBusy(false);
+    }
+  }
+
+  async function doDelete() {
+    try {
+      setDeleteBusy(true);
+
+      const res = await fetch("/api/admin/rooms/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId: room.id }),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(payload?.error ?? `Failed (${res.status})`);
+      }
+
+      setDeleteOpen(false);
+      router.refresh();
+    } catch (e: any) {
+      alert(e?.message ?? "Something went wrong.");
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -211,6 +306,15 @@ export function RoomRowActions({ room }: { room: RoomRow }) {
             isActive ? "Deactivate" : "Activate"
           )}
         </button>
+
+        <button
+          type="button"
+          disabled={deleteBusy}
+          onClick={() => setDeleteOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold text-rose-700 transition-colors hover:bg-rose-100 whitespace-nowrap disabled:opacity-50"
+        >
+          {deleteBusy ? <><Spinner size={11} />Deleting</> : "Delete"}
+        </button>
       </div>
 
       {/* Edit modal — prefilled from room prop */}
@@ -240,6 +344,13 @@ export function RoomRowActions({ room }: { room: RoomRow }) {
         room={room}
         onClose={() => setConfirmOpen(false)}
         onConfirm={doToggle}
+      />
+
+      <DeleteConfirmModal
+        open={deleteOpen}
+        room={room}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={doDelete}
       />
     </>
   );

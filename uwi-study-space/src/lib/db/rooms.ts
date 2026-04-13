@@ -31,6 +31,11 @@ export type RoomRow = Omit<RawRoomRow, "department"> & {
   department: { name: string } | null;
 };
 
+export type RoomDepartmentOption = {
+  id: number;
+  name: string;
+};
+
 /**
  * Convert Supabase's embedded array into a single object.
  * - If department is null/empty -> null
@@ -58,6 +63,7 @@ function normalizeRoom(row: RawRoomRow): RoomRow {
  */
 export async function getRoomsForRoomsManagement(opts: {
   mode: "admin" | "super_admin";
+  departmentId?: number;
 }): Promise<RoomRow[]> {
   const supabase = await createSupabaseServer();
 
@@ -88,7 +94,11 @@ export async function getRoomsForRoomsManagement(opts: {
     // Only allow true super admins to see global rooms here.
     if (role !== "super_admin") return [];
 
-    const { data, error } = await base.order("building").order("name");
+    const query = Number.isFinite(opts.departmentId)
+      ? base.eq("department_id", Number(opts.departmentId))
+      : base;
+
+    const { data, error } = await query.order("building").order("name");
     if (error) return [];
     return (data ?? []).map(normalizeRoom);
   }
@@ -124,10 +134,86 @@ export async function getRoomsForRoomsManagement(opts: {
   if (roomIds.length) orParts.push(`id.in.(${roomIds.join(",")})`);
   if (deptIds.length) orParts.push(`department_id.in.(${deptIds.join(",")})`);
 
-  const { data, error } = await base.or(orParts.join(",")).order("building").order("name");
+  let query = base.or(orParts.join(","));
+
+  if (Number.isFinite(opts.departmentId)) {
+    query = query.eq("department_id", Number(opts.departmentId));
+  }
+
+  const { data, error } = await query.order("building").order("name");
   if (error) return [];
 
   return (data ?? []).map(normalizeRoom);
+}
+
+export async function getDepartmentOptionsForRoomsManagement(opts: {
+  mode: "admin" | "super_admin";
+}): Promise<RoomDepartmentOption[]> {
+  const supabase = await createSupabaseServer();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data: meRows } = await supabase.rpc("get_my_profile");
+  const me = Array.isArray(meRows) ? meRows[0] : null;
+  const role = me?.role ?? null;
+
+  if (opts.mode === "super_admin") {
+    if (role !== "super_admin") return [];
+
+    const { data, error } = await supabase
+      .from("departments")
+      .select("id, name")
+      .order("name");
+
+    if (error) return [];
+    return (data ?? []) as RoomDepartmentOption[];
+  }
+
+  if (role !== "admin") return [];
+
+  const { data: scopes, error: scopeErr } = await supabase
+    .from("admin_scopes")
+    .select("department_id, room_id")
+    .eq("admin_user_id", user.id);
+
+  if (scopeErr) return [];
+
+  const directDeptIds = (scopes ?? [])
+    .map((s) => s.department_id)
+    .filter((v): v is number => typeof v === "number");
+
+  const scopedRoomIds = (scopes ?? [])
+    .map((s) => s.room_id)
+    .filter((v): v is number => typeof v === "number");
+
+  let roomDeptIds: number[] = [];
+  if (scopedRoomIds.length) {
+    const { data: roomRows, error: roomErr } = await supabase
+      .from("rooms")
+      .select("department_id")
+      .in("id", scopedRoomIds);
+
+    if (roomErr) return [];
+
+    roomDeptIds = (roomRows ?? [])
+      .map((r) => r.department_id)
+      .filter((v): v is number => typeof v === "number");
+  }
+
+  const allowedDeptIds = Array.from(new Set([...directDeptIds, ...roomDeptIds]));
+  if (allowedDeptIds.length === 0) return [];
+
+  const { data: departments, error: deptErr } = await supabase
+    .from("departments")
+    .select("id, name")
+    .in("id", allowedDeptIds)
+    .order("name");
+
+  if (deptErr) return [];
+  return (departments ?? []) as RoomDepartmentOption[];
 }
 
 /**

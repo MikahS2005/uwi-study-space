@@ -20,6 +20,7 @@ type SettingsRow = {
   max_booking_window_days?: number;
   max_booking_duration_hours?: number;
   max_consecutive_hours?: number;
+  reverify_after_logout_count?: number;
   updated_at: string;
 };
 
@@ -185,6 +186,7 @@ export default function SuperAdminSettingsPage() {
     max_booking_window_days: 7,
     max_booking_duration_hours: 3,
     max_consecutive_hours: 3,
+    reverify_after_logout_count: 3,
   };
 
   const [form, setForm] = useState(defaultForm);
@@ -229,6 +231,7 @@ export default function SuperAdminSettingsPage() {
           s.max_booking_duration_hours ?? 3,
         ),
         max_consecutive_hours: Number(s.max_consecutive_hours ?? 3),
+        reverify_after_logout_count: Number(s.reverify_after_logout_count ?? 3),
       });
     }
 
@@ -258,6 +261,9 @@ export default function SuperAdminSettingsPage() {
         settings.max_booking_duration_hours ?? 3,
       ),
       max_consecutive_hours: Number(settings.max_consecutive_hours ?? 3),
+      reverify_after_logout_count: Number(
+        settings.reverify_after_logout_count ?? 3,
+      ),
     };
 
     return JSON.stringify(baseline) !== JSON.stringify(form);
@@ -575,6 +581,20 @@ export default function SuperAdminSettingsPage() {
               onChange={(v) => set("no_show_ban_days", v)}
               min={0}
               max={365}
+            />
+          </SettingField>
+        </Section>
+
+        <Section title="Account Verification">
+          <SettingField
+            label="Re-verify after sign-outs"
+            hint="Number of user logouts allowed before email re-verification is required."
+          >
+            <NumberInput
+              value={form.reverify_after_logout_count}
+              onChange={(v) => set("reverify_after_logout_count", v)}
+              min={1}
+              max={100}
             />
           </SettingField>
         </Section>
