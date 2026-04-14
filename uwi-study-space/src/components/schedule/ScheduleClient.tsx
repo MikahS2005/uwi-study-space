@@ -1,4 +1,5 @@
 // src/components/schedule/ScheduleClient.tsx
+// src/components/schedule/ScheduleClient.tsx
 "use client";
 
 import { useMemo } from "react";
@@ -34,8 +35,14 @@ function addMonths(ym: string, delta: number) {
 }
 
 function fmtLocalTimeRange(startISO: string, endISO: string) {
-  const s = new Date(startISO).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const e = new Date(endISO).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const s = new Date(startISO).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const e = new Date(endISO).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   return `${s} - ${e}`;
 }
 
@@ -73,6 +80,7 @@ export default function ScheduleClient({ dto }: { dto: ScheduleMonthDTO }) {
   const sp = useSearchParams();
 
   const selected = dto.selected || "";
+
   const selectedCell = useMemo(
     () => dto.grid.find((c) => c.ymd === selected) ?? null,
     [dto.grid, selected]
@@ -110,77 +118,103 @@ export default function ScheduleClient({ dto }: { dto: ScheduleMonthDTO }) {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--color-text-light)] md:text-3xl">
-            Schedule
-          </h1>
-          <p className="mt-1 text-sm text-[var(--color-text-light)]/65">
-            Review room availability by date and open a booking directly from the calendar.
+      {/* Header */}
+      <section className="overflow-hidden rounded-2xl border border-[var(--color-border-light)] bg-white shadow-sm">
+        <div className="px-6 py-6">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#003595]/70">
+            Alma Jordan Library
           </p>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => pushParams({ month: addMonths(dto.month, -1), selected: "", bookRoomId: "" })}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border-light)] bg-white text-[var(--color-text-light)] shadow-sm transition-colors hover:bg-[var(--color-secondary)]"
-            aria-label="Previous month"
-          >
-            ‹
-          </button>
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-2xl">
+              <h1 className="text-3xl font-extrabold tracking-tight text-[var(--color-text-light)] md:text-4xl">
+                Schedule
+              </h1>
+              <p className="mt-2 text-sm text-[var(--color-text-light)]/70">
+                Review room availability by date and open a booking directly
+                from the calendar.
+              </p>
+            </div>
 
-          <div className="rounded-xl border border-[var(--color-border-light)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--color-text-light)] shadow-sm">
-            {monthLabel(dto.month)}
+            {/* Toolbar */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    pushParams({
+                      month: addMonths(dto.month, -1),
+                      selected: "",
+                      bookRoomId: "",
+                    })
+                  }
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border-light)] bg-white text-[var(--color-text-light)] shadow-sm transition-colors hover:bg-[var(--color-secondary)]"
+                  aria-label="Previous month"
+                >
+                  ‹
+                </button>
+
+                <div className="min-w-[160px] rounded-xl border border-[var(--color-border-light)] bg-white px-4 py-2.5 text-center text-sm font-semibold text-[var(--color-text-light)] shadow-sm">
+                  {monthLabel(dto.month)}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    pushParams({
+                      month: addMonths(dto.month, 1),
+                      selected: "",
+                      bookRoomId: "",
+                    })
+                  }
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border-light)] bg-white text-[var(--color-text-light)] shadow-sm transition-colors hover:bg-[var(--color-secondary)]"
+                  aria-label="Next month"
+                >
+                  ›
+                </button>
+              </div>
+
+              <select
+                className="h-10 rounded-xl border border-[var(--color-border-light)] bg-white px-3 text-sm text-[var(--color-text-light)] shadow-sm outline-none"
+                value={dto.roomId === "all" ? "all" : String(dto.roomId)}
+                onChange={(e) => pushParams({ roomId: e.target.value })}
+              >
+                <option value="all">All Rooms</option>
+                {dto.rooms.map((r) => (
+                  <option key={r.id} value={String(r.id)}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => pushParams({ month: addMonths(dto.month, 1), selected: "", bookRoomId: "" })}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--color-border-light)] bg-white text-[var(--color-text-light)] shadow-sm transition-colors hover:bg-[var(--color-secondary)]"
-            aria-label="Next month"
-          >
-            ›
-          </button>
-
-          <select
-            className="rounded-xl border border-[var(--color-border-light)] bg-white px-3 py-2.5 text-sm text-[var(--color-text-light)] shadow-sm outline-none"
-            value={dto.roomId === "all" ? "all" : String(dto.roomId)}
-            onChange={(e) => pushParams({ roomId: e.target.value })}
-          >
-            <option value="all">All Rooms</option>
-            {dto.rooms.map((r) => (
-              <option key={r.id} value={String(r.id)}>
-                {r.name}
-              </option>
+          {/* Legend */}
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            {[
+              { label: "Available", status: "available" as const },
+              { label: "Limited", status: "limited" as const },
+              { label: "Full", status: "full" as const },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border-light)] bg-[var(--color-surface-light)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-light)]/75"
+              >
+                <span
+                  className={`h-2.5 w-2.5 rounded-full ${legendDot(item.status)}`}
+                />
+                {item.label}
+              </div>
             ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-2">
-        {[
-          { label: "Available", status: "available" as const },
-          { label: "Limited", status: "limited" as const },
-          { label: "Full", status: "full" as const },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border-light)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--color-text-light)]/75"
-          >
-            <span className={`h-2.5 w-2.5 rounded-full ${legendDot(item.status)}`} />
-            {item.label}
           </div>
-        ))}
-      </div>
+        </div>
+      </section>
 
-      {/* Main layout */}
+      {/* Main content */}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         {/* Calendar */}
         <section className="rounded-2xl border border-[var(--color-border-light)] bg-white p-4 shadow-sm md:p-5">
-          <div className="grid grid-cols-7 text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-light)]/45">
+          <div className="mb-3 grid grid-cols-7 text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-light)]/45">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
               <div key={d} className="py-2">
                 {d}
@@ -201,7 +235,7 @@ export default function ScheduleClient({ dto }: { dto: ScheduleMonthDTO }) {
                   disabled={disabled}
                   onClick={() => pushParams({ selected: c.ymd })}
                   className={[
-                    "h-[88px] rounded-2xl border p-3 text-left transition-all duration-200",
+                    "min-h-[88px] rounded-2xl border p-3 text-left transition-all duration-200",
                     disabled
                       ? "cursor-not-allowed border-[var(--color-border-light)] bg-[var(--color-surface-light)] opacity-45"
                       : "hover:-translate-y-0.5 hover:shadow-sm",
@@ -224,36 +258,41 @@ export default function ScheduleClient({ dto }: { dto: ScheduleMonthDTO }) {
           </div>
         </section>
 
-        {/* Right panel */}
+        {/* Side panel */}
         <aside className="rounded-2xl border border-[var(--color-border-light)] bg-white p-5 shadow-sm xl:sticky xl:top-6 xl:self-start">
           {!selectedCell ? (
             <div className="flex min-h-[280px] flex-col items-center justify-center text-center">
-              <div className="text-lg font-semibold text-[var(--color-text-light)]">Select a date</div>
+              <div className="text-lg font-semibold text-[var(--color-text-light)]">
+                Select a date
+              </div>
               <div className="mt-1 text-sm text-[var(--color-text-light)]/60">
-                Choose a day from the calendar to view availability and book a room.
+                Choose a day from the calendar to view availability and book a
+                room.
               </div>
             </div>
           ) : (
             <div className="space-y-5">
-              {/* Selected date header */}
               <div>
                 <div className="inline-flex items-center rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--color-primary)]">
                   Selected day
                 </div>
+
                 <div className="mt-3 text-lg font-semibold text-[var(--color-text-light)]">
                   {formatDateLabel(selectedCell.ymd)}
                 </div>
+
                 <div className="mt-1 text-sm text-[var(--color-text-light)]/60">
-                  {Math.max(0, selectedCell.totalSlots - selectedCell.bookedSlots)} of{" "}
-                  {selectedCell.totalSlots} slots available
+                  {Math.max(0, selectedCell.totalSlots - selectedCell.bookedSlots)}{" "}
+                  of {selectedCell.totalSlots} slots available
                 </div>
               </div>
 
-              {/* Availability summary */}
               <div className="rounded-2xl border border-[var(--color-border-light)] bg-[var(--color-surface-light)] p-4">
                 {selectedCell.bookedSlots === 0 ? (
                   <>
-                    <div className="font-semibold text-[var(--color-primary)]">Fully available</div>
+                    <div className="font-semibold text-[var(--color-primary)]">
+                      Fully available
+                    </div>
                     <div className="mt-1 text-sm text-[var(--color-text-light)]/60">
                       No bookings have been made for this date yet.
                     </div>
@@ -289,9 +328,10 @@ export default function ScheduleClient({ dto }: { dto: ScheduleMonthDTO }) {
                 )}
               </div>
 
-              {/* Quick book */}
               <div className="border-t border-[var(--color-border-light)] pt-4">
-                <div className="text-sm font-semibold text-[var(--color-text-light)]">Quick book</div>
+                <div className="text-sm font-semibold text-[var(--color-text-light)]">
+                  Quick book
+                </div>
                 <div className="mt-1 text-sm text-[var(--color-text-light)]/60">
                   Open a booking modal for this date.
                 </div>

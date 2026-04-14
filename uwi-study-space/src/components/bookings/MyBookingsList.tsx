@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { FiAlertTriangle } from "react-icons/fi";
 
 function fmtLocal(iso: string) {
   const d = new Date(iso);
@@ -306,8 +307,9 @@ export default function MyBookingsList(props: {
               </div>
             </div>
 
-            <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-700 ring-1 ring-amber-200">
-              ⚠ This action cannot be undone. The room slot will be released.
+            <p className="mt-4 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-700 ring-1 ring-amber-200">
+              <FiAlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>This action cannot be undone. The room slot will be released.</span>
             </p>
 
             <div className="mt-5 flex justify-end gap-2">

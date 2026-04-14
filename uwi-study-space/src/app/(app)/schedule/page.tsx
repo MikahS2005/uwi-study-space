@@ -4,10 +4,10 @@ import { createSupabaseServer } from "@/lib/supabase/server";
 import { getSettings } from "@/lib/db/bookings";
 import { getRoomsForSchedule, getActiveBookingsBetweenForSchedule } from "@/lib/db/schedule";
 import { buildScheduleMonthDTO } from "@/lib/schedule/buildMonthDTO";
-import ScheduleClient from "@/components/schedule/ScheduleClient";
+import ScheduleClient from "../../../components/schedule/ScheduleClient";
 
 
-// ✅ reuse your existing logic for slot building
+// reuse existing logic for slot building
 import { getRoomById, getActiveBookingsForRoomBetween } from "@/lib/db/rooms";
 import { buildSlotsForDay, startOfDay, endOfDay } from "@/lib/booking/time";
 import SlotPickerModalAutoOpen from "@/components/bookings/SlotPickerModalAutoOpen";
@@ -75,7 +75,7 @@ export default async function SchedulePage(props: {
     closeHour: 21,
   });
 
-  // ✅ NEW: build bookingDTO for modal if selected+bookRoomId exist
+  // build bookingDTO for modal if selected+bookRoomId exist
     let bookingDTO:
   | null
   | {
@@ -96,7 +96,7 @@ if (bookRoomId && selected) {
 
     bookingDTO = {
       roomId: bookRoomId,
-      roomName: room.name, // ✅ fixes TS error
+      roomName: room.name, 
       date: selected,
       slots: avail.slots,
       slotMinutes: avail.slotMinutes,
@@ -109,7 +109,7 @@ if (bookRoomId && selected) {
 
   return (
     <div className="p-6">
-      {/* ✅ auto-open modal when bookRoomId is present */}
+      {/* auto-open modal when bookRoomId is present */}
       {bookingDTO ? <SlotPickerModalAutoOpen dto={bookingDTO} /> : null}
 
       <ScheduleClient dto={dto} />
