@@ -11,6 +11,7 @@ type DayHours = {
   open_minute: number;
   close_minute: number;
   is_closed: boolean;
+  closed?: boolean;
 };
 
 export async function POST(req: Request) {
@@ -82,10 +83,11 @@ export async function POST(req: Request) {
 
   for (let dow = 0; dow <= 6; dow++) {
     const h = byDow.get(dow) ?? { day_of_week: dow, open_minute: 480, close_minute: 1200, is_closed: false };
+    const isClosed = Boolean(h.is_closed ?? h.closed ?? false);
 
     if (dow < 0 || dow > 6) return NextResponse.json({ error: "Invalid day_of_week." }, { status: 400 });
 
-    if (!h.is_closed) {
+    if (!isClosed) {
       if (h.open_minute < 0 || h.open_minute > 1439) {
         return NextResponse.json({ error: "Invalid open_minute." }, { status: 400 });
       }
@@ -102,7 +104,7 @@ export async function POST(req: Request) {
       day_of_week: dow,
       open_minute: h.open_minute,
       close_minute: h.close_minute,
-      is_closed: Boolean(h.is_closed),
+      is_closed: isClosed,
       updated_at: new Date().toISOString(),
     });
   }

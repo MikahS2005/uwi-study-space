@@ -35,5 +35,15 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Failed to load opening hours", detail: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true, hours: data ?? [] });
+  const hours = (data ?? []).map((row) => ({
+    day_of_week: row.day_of_week,
+    open_minute: row.open_minute,
+    close_minute: row.close_minute,
+    is_closed: Boolean(row.is_closed ?? false),
+  }));
+
+  return NextResponse.json(
+    { ok: true, hours },
+    { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } },
+  );
 }

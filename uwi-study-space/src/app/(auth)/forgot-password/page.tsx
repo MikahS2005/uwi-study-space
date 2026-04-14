@@ -71,7 +71,7 @@ export default function ForgotPasswordPage() {
         .auth-btn-primary {
           display: inline-flex; align-items: center; justify-content: center; gap: 10px;
           width: 100%; height: 52px;
-          background: linear-gradient(135deg, #003595 0%, #002160 100%);
+          background: #003595;
           color: #fff; font-family: 'DM Sans', system-ui, sans-serif;
           font-size: 15px; font-weight: 600; letter-spacing: .02em;
           border: none; border-radius: 12px; cursor: pointer;
@@ -111,10 +111,6 @@ export default function ForgotPasswordPage() {
           <div className="absolute inset-0 bg-gradient-to-br from-[#001635]/92 via-[#002160]/85 to-[#003595]/75" />
 
           <div className="relative z-10 max-w-sm px-10 text-white">
-            <div className="auth-badge mb-8">
-              <span className="auth-badge-dot" />
-              UWI St. Augustine Campus
-            </div>
             <h1 className="auth-font-display text-[48px] leading-[1.08] font-black">
               Reset Your
               <br />
