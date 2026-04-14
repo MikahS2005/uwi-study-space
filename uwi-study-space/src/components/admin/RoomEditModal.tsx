@@ -32,6 +32,7 @@ type DayHours = {
   open_minute: number; // 0..1439
   close_minute: number; // 1..1440
   is_closed: boolean;
+  closed?: boolean;
 };
 
 type BlackoutRow = {
@@ -58,6 +59,20 @@ function minutesToHHMM(mins: number) {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function normalizeHours(hours: DayHours[]) {
+  return Array.from({ length: 7 }).map((_, i) => {
+    const match = hours.find((x) => x.day_of_week === i);
+    if (!match) return { day_of_week: i, open_minute: 480, close_minute: 1200, is_closed: false };
+
+    return {
+      day_of_week: match.day_of_week,
+      open_minute: match.open_minute,
+      close_minute: match.close_minute,
+      is_closed: Boolean(match.is_closed ?? match.closed ?? false),
+    };
+  });
 }
 
 // ─── Shared style constants (mirrors NewRoomModal) ───────────────────────────
@@ -140,9 +155,9 @@ export function RoomEditModal(props: {
         setRulesBusy(true);
 
         const [hrsRes, blkRes, bufRes] = await Promise.all([
-          fetch(`/api/admin/rooms/opening-hours/get?roomId=${room.id}`),
-          fetch(`/api/admin/rooms/blackouts/list?roomId=${room.id}`),
-          fetch(`/api/admin/rooms/buffer/get?roomId=${room.id}`),
+          fetch(`/api/admin/rooms/opening-hours/get?roomId=${room.id}`, { cache: "no-store" }),
+          fetch(`/api/admin/rooms/blackouts/list?roomId=${room.id}`, { cache: "no-store" }),
+          fetch(`/api/admin/rooms/buffer/get?roomId=${room.id}`, { cache: "no-store" }),
         ]);
 
         const [hrsPayload, blkPayload, bufPayload] = await Promise.all([
@@ -156,12 +171,7 @@ export function RoomEditModal(props: {
         if (!bufRes.ok) throw new Error(bufPayload?.error ?? "Failed to load buffer minutes.");
 
         const hrs = Array.isArray(hrsPayload?.hours) ? (hrsPayload.hours as DayHours[]) : [];
-        setHours(
-          Array.from({ length: 7 }).map((_, i) => {
-            const match = hrs.find((x) => x.day_of_week === i);
-            return match ?? { day_of_week: i, open_minute: 480, close_minute: 1200, is_closed: false };
-          }),
-        );
+        setHours(normalizeHours(hrs));
         setBlackouts(Array.isArray(blkPayload?.blackouts) ? blkPayload.blackouts : []);
         setBufferMinutes(String(bufPayload?.bufferMinutes ?? 0));
       } catch (e: any) {
@@ -352,7 +362,9 @@ export function RoomEditModal(props: {
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload?.error ?? "Failed to create blackout.");
-      const blkRes = await fetch(`/api/admin/rooms/blackouts/list?roomId=${room.id}`);
+      const blkRes = await fetch(`/api/admin/rooms/blackouts/list?roomId=${room.id}`, {
+        cache: "no-store",
+      });
       const blkPayload = await blkRes.json().catch(() => ({}));
       if (blkRes.ok) setBlackouts(Array.isArray(blkPayload?.blackouts) ? blkPayload.blackouts : []);
       setBlkStart("");

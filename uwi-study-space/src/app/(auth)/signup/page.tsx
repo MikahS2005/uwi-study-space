@@ -165,10 +165,6 @@ export default function SignupPage() {
           <div className="absolute inset-0 bg-gradient-to-br from-[#001635]/92 via-[#002160]/85 to-[#003595]/75" />
 
           <div className="relative z-10 max-w-sm px-10 text-white">
-            <div className="auth-badge mb-8">
-              <span className="auth-badge-dot" />
-              UWI St. Augustine Campus
-            </div>
             <h1 className="auth-font-display text-[48px] leading-[1.08] font-black">
               Start Your
               <br />
@@ -178,16 +174,6 @@ export default function SignupPage() {
             <p className="text-white/70 text-[15.5px] leading-relaxed font-light">
               Create your account to access room booking, schedules, and waitlist offers.
             </p>
-            <div className="mt-10 space-y-3">
-              {["Room Booking System", "Study Group Scheduling", "Waitlist Management"].map((item) => (
-                <div key={item} className="flex items-center gap-3">
-                  <div className="w-5 h-5 rounded-full bg-[#F5C04F]/20 border border-[#F5C04F]/40 flex items-center justify-center flex-shrink-0">
-                    <div className="w-2 h-2 rounded-full bg-[#F5C04F]" />
-                  </div>
-                  <span className="text-white/70 text-sm font-light">{item}</span>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
 

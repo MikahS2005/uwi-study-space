@@ -148,7 +148,7 @@ export default function LoginPage() {
           gap: 10px;
           width: 100%;
           height: 52px;
-          background: linear-gradient(135deg, #003595 0%, #002160 100%);
+          background: #003595;;
           color: #fff;
           font-family: 'DM Sans', system-ui, sans-serif;
           font-size: 15px;
@@ -214,10 +214,6 @@ export default function LoginPage() {
           <div className="absolute inset-0 bg-gradient-to-br from-[#001635]/92 via-[#002160]/85 to-[#003595]/75" />
 
           <div className="relative z-10 max-w-lg px-12 text-white">
-            <div className="auth-badge mb-8">
-              <span className="auth-badge-dot" />
-              UWI St. Augustine Campus
-            </div>
 
             <h1 className="auth-font-display text-[56px] leading-[1.05] font-black">
               Master Your
@@ -231,14 +227,6 @@ export default function LoginPage() {
               The official Alma Jordan Library Study Room Booking System for UWI St.&nbsp;Augustine students and staff.
             </p>
 
-            <div className="mt-12 flex items-center gap-4">
-              <div className="flex -space-x-2">
-                {["#8FB3FF","#A5D6A7","#FFE082"].map((c, i) => (
-                  <div key={i} className="w-8 h-8 rounded-full border-2 border-white/30" style={{ background: c }} />
-                ))}
-              </div>
-              <p className="text-white/60 text-sm">2,400+ students booking weekly</p>
-            </div>
           </div>
         </div>
 

@@ -394,20 +394,23 @@ const selectedDate = normalizeBookableDate(
   // ---------------------------
   return (
     <div className="space-y-8 pb-6">
-  <section className="overflow-hidden rounded-[32px] border border-[var(--color-border-light)] p-6 shadow-[0_18px_50px_rgba(0,53,149,0.08)] md:p-8">
-    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-      <div>
-
-        <h1 className="text-3xl font-bold tracking-tight text-[var(--color-text-light)] md:text-4xl">
-          Browse Rooms
-        </h1>
-
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-text-light)]/72 md:text-base">
-          Discover available study rooms, compare amenities, and reserve the best space for your session.
-        </p>
+  <section>
+      <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
+        <div className="px-6 py-5">
+          <div>
+            <p className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[#003595]/70">
+              Alma Jordan Library
+            </p>
+            <h1 className="text-4xl font-extrabold tracking-tight text-[#1F2937]">Browse Rooms</h1>
+            <p className="mt-1.5 flex items-center gap-2 text-sm font-medium text-[#4B5563]">
+              Discover available study rooms, compare amenities, and reserve the best space for your session.
+            </p>
+          </div>
+        </div>
       </div>
-    </div>
   </section>
+
+
 
   <section className="rounded-[28px] border border-[var(--color-border-light)] bg-white p-6 shadow-[0_12px_35px_rgba(17,24,39,0.07)]">
     <RoomsDatePicker maxDaysAhead={settingsForPicker.max_booking_window_days} />

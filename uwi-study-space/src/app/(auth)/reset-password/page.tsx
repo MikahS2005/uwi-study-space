@@ -87,7 +87,7 @@ export default function ResetPasswordPage() {
     .auth-btn-primary {
       display: inline-flex; align-items: center; justify-content: center; gap: 10px;
       width: 100%; height: 52px;
-      background: linear-gradient(135deg, #003595 0%, #002160 100%);
+      background: #003595;
       color: #fff; font-family: 'DM Sans', system-ui, sans-serif;
       font-size: 15px; font-weight: 600; letter-spacing: .02em;
       border: none; border-radius: 12px; cursor: pointer;
